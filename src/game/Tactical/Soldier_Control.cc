@@ -1,4 +1,5 @@
 #include "Soldier_Control.h"
+#include "CoopSync.h"
 #include "AI.h"
 #include "Animation_Cache.h"
 #include "Animation_Control.h"
@@ -153,8 +154,30 @@ static const BATTLESNDS_STRUCT gBattleSndsData[] =
 	{ "lmok2",  0, 0, 1, 2 },
 	{ "lmattn", 0, 0, 1, 0 },
 	{ "locked", 0, 0, 1, 0 },
-	{ "enem",   0, 1, 1, 0 }
+	{ "enem",   0, 1, 1, 0 },
+	{ "pissed", 0, 0, 0, 1 }
 };
+static_assert(lengthof(gBattleSndsData) == NUM_MERC_BATTLE_SOUNDS);
+
+// the next of the takes said in order (the "pissed" lines), see PickBattleSoundTake
+static UINT32 g_next_in_order_take = 0;
+
+
+/* A voice may come with more than one take of a battle sound: <voice>_<name>.wav,
+ * then <voice>_<name>_2.wav, _3.wav and so on up to 9. One is picked at random,
+ * or in turn for lines that build up, like StarCraft units getting annoyed. */
+static ST::string PickBattleSoundTake(ST::string const& first, ST::string const& stem, bool const in_order)
+{
+	std::vector<ST::string> takes{ first };
+	for (int i = 2; i <= 9; ++i)
+	{
+		ST::string const take = ST::format("{}_{}.wav", stem, i);
+		if (!GCM->doesGameResExists(take)) break;
+		takes.push_back(take);
+	}
+	if (in_order) return takes[g_next_in_order_take++ % takes.size()];
+	return takes[Random(static_cast<UINT32>(takes.size()))];
+}
 
 
 UINT8	bHealthStrRanges[] =
@@ -3405,6 +3428,13 @@ static void SoldierGotHitPunch(SOLDIERTYPE* const pSoldier)
 
 BOOLEAN EVENT_InternalGetNewSoldierPath( SOLDIERTYPE *pSoldier, UINT16 sDestGridNo, UINT16 usMovementAnim, BOOLEAN fFromUI, BOOLEAN fForceRestartAnim )
 {
+	// co-op guest: the host moves our mercs
+	if (fFromUI && CoopSyncGuestMove(*pSoldier, sDestGridNo, usMovementAnim, pSoldier->bReverse != 0, NOWHERE, 0))
+	{
+		UnSetUIBusy(pSoldier);
+		return TRUE;
+	}
+
 	INT32 iDest;
 	BOOLEAN fContinue;
 	UINT32 uiDist;
@@ -5867,6 +5897,9 @@ BOOLEAN InternalDoMercBattleSound(SOLDIERTYPE* s, BattleSound battle_snd_id, boo
 {
 	constexpr INT8 LOW_MORALE_BATTLE_SND_THRESHOLD = 35;
 
+	// co-op: the guests hear it too (not the host's own acknowledgements)
+	CoopSyncBattleSound(*s, battle_snd_id, lowerVolume);
+
 	CHECKF (battle_snd_id < NUM_MERC_BATTLE_SOUNDS);
 
 	if (s->uiStatusFlags & SOLDIER_VEHICLE)
@@ -6022,8 +6055,15 @@ no_sub:
 	}
 
 	ST::string filename = ST::format(BATTLESNDSDIR "/{}_{}.wav", basename, adjusted_battle_snd.zName);
-	if (!GCM->doesGameResExists(filename))
+	if (GCM->doesGameResExists(filename))
 	{
+		filename = PickBattleSoundTake(filename, ST::format(BATTLESNDSDIR "/{}_{}", basename, adjusted_battle_snd.zName), battle_snd_id == BATTLE_SOUND_PISSED);
+	}
+	else
+	{
+		// nobody else has annoyed lines to fall back on
+		if (battle_snd_id == BATTLE_SOUND_PISSED) return FALSE;
+
 		if (battle_snd_id == BATTLE_SOUND_DIE1)
 		{
 			// The "die" sound filenames differs between profiles and languages
@@ -9114,3 +9154,84 @@ TEST(SoldierControl, atan8)
 }
 
 #endif
+
+
+void DoMercSelectSound(SOLDIERTYPE& s, bool const already_selected)
+{
+	if (gGameSettings.fOptions[TOPTION_MUTE_CONFIRMATIONS]) return;
+
+	static SOLDIERTYPE const* last_clicked = nullptr;
+	static UINT32             last_click   = 0;
+	static UINT32             clicks       = 0;
+	UINT32 const now = GetJA2Clock();
+	clicks       = &s == last_clicked && now - last_click < 2000 ? clicks + 1 : 1;
+	last_clicked = &s;
+	last_click   = now;
+
+	if (!already_selected)
+	{
+		DoMercBattleSound(&s, BATTLE_SOUND_ATTN1);
+		return;
+	}
+
+	if (s.ubProfile == NO_PROFILE) return;
+	ST::string const pissed = ST::format(BATTLESNDSDIR "/{03d}_pissed.wav", GetProfile(s.ubProfile).ubVoiceId);
+	if (!GCM->doesGameResExists(pissed)) return;
+
+	if (clicks < 5)
+	{
+		DoMercBattleSound(&s, BATTLE_SOUND_ATTN1);
+		return;
+	}
+	if (clicks == 5) g_next_in_order_take = 0; // a new fit of annoyance starts at the top
+	DoMercBattleSound(&s, BATTLE_SOUND_PISSED);
+}
+
+
+static ST::string MercQuoteSoundStem(SOLDIERTYPE const& s, UINT16 const quote)
+{
+	return ST::format(BATTLESNDSDIR "/{03d}_q{03d}", GetProfile(s.ubProfile).ubVoiceId, quote);
+}
+
+
+bool HasMercQuoteSound(SOLDIERTYPE const& s, UINT16 const quote)
+{
+	if (s.ubProfile == NO_PROFILE) return false;
+	return GCM->doesGameResExists(MercQuoteSoundStem(s, quote) + ".wav");
+}
+
+
+static void DoMercQuoteSound(SOLDIERTYPE& s, UINT16 const quote)
+{
+	ST::string const stem = MercQuoteSoundStem(s, quote);
+	ST::string const filename = PickBattleSoundTake(stem + ".wav", stem, false);
+	UINT32 const sound = SoundPlay(filename.c_str(), CalculateSpeechVolume(HIGHVOLUME), SoundDir(s.sGridNo), 1, NULL, NULL);
+	if (sound == SOUND_ERROR) return;
+	s.uiBattleSoundID = sound;
+	if (s.face) ExternSetFaceTalking(*s.face, sound);
+}
+
+
+void MakeCharacterDialogueEventDoQuoteSound(SOLDIERTYPE& s, UINT16 const quote)
+{
+	class CharacterDialogueEventDoQuoteSound : public CharacterDialogueEvent
+	{
+		public:
+			CharacterDialogueEventDoQuoteSound(SOLDIERTYPE& s, UINT16 const quote) :
+				CharacterDialogueEvent(s),
+				quote_(quote)
+			{}
+
+			bool Execute()
+			{
+				if (!MayExecute()) return true;
+				DoMercQuoteSound(soldier_, quote_);
+				return false;
+			}
+
+		private:
+			UINT16 const quote_;
+	};
+
+	DialogueEvent::Add(new CharacterDialogueEventDoQuoteSound(s, quote));
+}

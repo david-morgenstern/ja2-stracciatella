@@ -1,4 +1,5 @@
 #include "Button_Sound_Control.h"
+#include "Coop.h"
 #include "Button_System.h"
 #include "Cursor_Control.h"
 #include "Cursors.h"
@@ -36,9 +37,15 @@
 #define GIO_TOGGLE_TEXT_COLOR		FONT_MCOLOR_WHITE
 
 //buttons
-#define GIO_BTN_OK_X			(STD_SCREEN_X + 141)
+#define GIO_BTN_OK_X			(STD_SCREEN_X + 70)
 #define GIO_BTN_OK_Y			(STD_SCREEN_Y + 418)
-#define GIO_CANCEL_X			(STD_SCREEN_X + 379)
+#define GIO_CANCEL_X			(STD_SCREEN_X + 450)
+#define GIO_HOUSE_RULES_X		(STD_SCREEN_X + 260)
+
+// the house rules page, which takes the place of the regular settings
+#define GIO_RULES_X			(STD_SCREEN_X + 80)
+#define GIO_RULES_Y			(STD_SCREEN_Y + 120)
+#define GIO_RULES_GAP			70
 
 //main title
 #define GIO_MAIN_TITLE_X		(STD_SCREEN_X + 0)
@@ -169,6 +176,36 @@ static void BtnTimedTurnsTogglesCallback(GUI_BUTTON *btn, UINT32 reason);
 static GUIButtonRef guiGameSaveToggles[NUM_SAVE_OPTIONS];
 static void BtnGameSaveTogglesCallback(GUI_BUTTON *btn, UINT32 reason);
 
+// House rules: optional changes to the campaign, on a page of their own
+enum
+{
+	GIO_RULE_INFINITE_MINES,
+	GIO_RULE_MORE_MILITIA,
+	GIO_RULE_WISDOM_LEARNING,
+	GIO_RULE_COOP,
+
+	NUM_HOUSE_RULES,
+};
+
+struct HouseRuleText { char const* title; char const* detail; };
+static HouseRuleText const g_house_rule_text[NUM_HOUSE_RULES] =
+{
+	{ "Mines never run out",       "No mine dries up over the course of the campaign." },
+	{ "More militia per sector",   "A sector holds up to 32 militia instead of 20." },
+	{ "Wise mercs learn faster",   "Wisdom counts twice as much when stats improve, and for strength, agility, dexterity and health too." },
+	{ "Co-op for two players",     "Each merc takes orders from the player who hired them; Ctrl+Shift+G hands one over, Ctrl+Shift+P passes the keyboard." },
+};
+
+static GUIButtonRef guiHouseRuleToggles[NUM_HOUSE_RULES];
+static GUIButtonRef guiHouseRulesButton;
+static BUTTON_PICS* giHouseRulesBtnImage;
+static bool         gfHouseRulesPage = false;
+static void BtnHouseRulesCallback(GUI_BUTTON* btn, UINT32 reason);
+// the button system flips a check box on release; without a click callback it
+// would also flip it on press, so it never stays changed
+static void BtnHouseRuleToggleCallback(GUI_BUTTON*, UINT32) {}
+static void ShowHouseRulesPage(bool show);
+
 
 static void EnterGIOScreen();
 static void ExitGIOScreen();
@@ -272,6 +309,21 @@ static void EnterGIOScreen()
 	giGIOCancelBtnImage = UseLoadedButtonImage(giGIODoneBtnImage, 1, 3);
 	guiGIOCancelButton  = MakeButton(giGIOCancelBtnImage, gzGIOScreenText[GIO_CANCEL_TEXT], GIO_CANCEL_X, BtnGIOCancelCallback);
 
+	// House rules button, and the rules' own check boxes for when that page shows
+	giHouseRulesBtnImage = UseLoadedButtonImage(giGIODoneBtnImage, 1, 3);
+	guiHouseRulesButton  = MakeButton(giHouseRulesBtnImage, "House Rules", GIO_HOUSE_RULES_X, BtnHouseRulesCallback);
+	{
+		bool const on[NUM_HOUSE_RULES] = { gGameOptions.fInfiniteMines != 0, gGameOptions.fMoreMilitia != 0, gGameOptions.fWisdomLearning != 0, gGameOptions.ubCoopPlayers >= 2 };
+		for (int i = 0; i != NUM_HOUSE_RULES; ++i)
+		{
+			GUIButtonRef const b = CreateCheckBoxButton(GIO_RULES_X, GIO_RULES_Y + i * GIO_RULES_GAP - GIO_OFFSET_TO_TOGGLE_BOX_Y, INTERFACEDIR "/optionscheck.sti", MSYS_PRIORITY_HIGH + 10, BtnHouseRuleToggleCallback);
+			if (on[i]) b->uiFlags |= BUTTON_CLICKED_ON;
+			b->Hide();
+			guiHouseRuleToggles[i] = b;
+		}
+	}
+	gfHouseRulesPage = false;
+
 	{ // Check box to toggle difficulty settings
 		INT16 const x = GIO_DIF_SETTINGS_X + GIO_OFFSET_TO_TOGGLE_BOX;
 		INT16 const y = GIO_DIF_SETTINGS_Y - GIO_OFFSET_TO_TOGGLE_BOX_Y;
@@ -331,7 +383,10 @@ static void ExitGIOScreen()
 
 	RemoveButton(guiGIOCancelButton);
 	RemoveButton(guiGIODoneButton);
+	RemoveButton(guiHouseRulesButton);
+	FOR_EACH(GUIButtonRef, i, guiHouseRuleToggles) RemoveButton(*i);
 
+	UnloadButtonImage(giHouseRulesBtnImage);
 	UnloadButtonImage(giGIOCancelBtnImage);
 	UnloadButtonImage(giGIODoneBtnImage);
 
@@ -419,6 +474,18 @@ static void RenderGIOScreen(void)
 	//Shade the background
 	FRAME_BUFFER->ShadowRect(STD_SCREEN_X + 48, STD_SCREEN_Y + 55, STD_SCREEN_X + 592, STD_SCREEN_Y + 408); //358
 
+
+	if (gfHouseRulesPage)
+	{
+		DrawTextToScreen("House Rules", GIO_MAIN_TITLE_X, GIO_MAIN_TITLE_Y, GIO_MAIN_TITLE_WIDTH, GIO_TITLE_FONT, GIO_TITLE_COLOR, FONT_MCOLOR_BLACK, CENTER_JUSTIFIED);
+		for (int i = 0; i != NUM_HOUSE_RULES; ++i)
+		{
+			UINT16 const y = GIO_RULES_Y + i * GIO_RULES_GAP;
+			DisplayWrappedString(GIO_RULES_X + 45, y + 2, 420, 2, GIO_TOGGLE_TEXT_FONT, GIO_TOGGLE_TEXT_COLOR, g_house_rule_text[i].title, FONT_MCOLOR_BLACK, LEFT_JUSTIFIED);
+			DisplayWrappedString(GIO_RULES_X + 45, y + 24, 420, 2, FONT12ARIAL, GIO_TOGGLE_TEXT_COLOR, g_house_rule_text[i].detail, FONT_MCOLOR_BLACK, LEFT_JUSTIFIED);
+		}
+		return;
+	}
 
 	//Display the title
 	DrawTextToScreen(gzGIOScreenText[GIO_INITIAL_GAME_SETTINGS], GIO_MAIN_TITLE_X, GIO_MAIN_TITLE_Y, GIO_MAIN_TITLE_WIDTH, GIO_TITLE_FONT, GIO_TITLE_COLOR, FONT_MCOLOR_BLACK, CENTER_JUSTIFIED);
@@ -662,6 +729,15 @@ static void RestoreGIOButtonBackGrounds(void)
 	UINT8	cnt;
 	UINT16 usPosY;
 
+	if (gfHouseRulesPage)
+	{
+		for (int i = 0; i != NUM_HOUSE_RULES; ++i)
+		{
+			RestoreExternBackgroundRect(GIO_RULES_X, GIO_RULES_Y + i * GIO_RULES_GAP - GIO_OFFSET_TO_TOGGLE_BOX_Y, 34, 29);
+		}
+		return;
+	}
+
 	// Check box to toggle Difficulty settings
 	usPosY = GIO_DIF_SETTINGS_Y - GIO_OFFSET_TO_TOGGLE_BOX_Y;
 	for (cnt = 0; cnt < NUM_DIF_LEVELS; cnt++)
@@ -717,6 +793,13 @@ static void DoneFadeOutForExitGameInitOptionScreen(void)
 #endif
 	// JA2Gold: iron man
 	gGameOptions.ubGameSaveMode = GetCurrentGameSaveButtonSetting();
+
+	// house rules
+	gGameOptions.fInfiniteMines  = guiHouseRuleToggles[GIO_RULE_INFINITE_MINES]->Clicked();
+	gGameOptions.fMoreMilitia    = guiHouseRuleToggles[GIO_RULE_MORE_MILITIA]->Clicked();
+	gGameOptions.fWisdomLearning = guiHouseRuleToggles[GIO_RULE_WISDOM_LEARNING]->Clicked();
+	gGameOptions.ubCoopPlayers   = guiHouseRuleToggles[GIO_RULE_COOP]->Clicked() ? 2 : 1;
+	CoopSetLocalPlayer(0);
 
 	if (gGameOptions.ubGameSaveMode == GIO_DEAD_IS_DEAD)
 	{
@@ -811,4 +894,39 @@ static void ConfirmGioDeadIsDeadGoToSaveMessageBoxCallBack(MessageBoxReturnValue
 	// Set the Previous Option Screen to the Game Init Options Screen, so the save screen knows we are starting a new game
 	guiPreviousOptionScreen = GAME_INIT_OPTIONS_SCREEN;
 	gubGameOptionScreenHandler = GIO_EXIT;
+}
+
+
+static void ShowHouseRulesPage(bool const show)
+{
+	gfHouseRulesPage = show;
+
+	GUIButtonRef* const groups[] = { guiDifficultySettingsToggles, guiGameStyleToggles, guiGunOptionToggles, guiGameSaveToggles };
+	size_t const sizes[] = { lengthof(guiDifficultySettingsToggles), lengthof(guiGameStyleToggles), lengthof(guiGunOptionToggles), lengthof(guiGameSaveToggles) };
+	for (size_t g = 0; g != lengthof(groups); ++g)
+	{
+		for (size_t i = 0; i != sizes[g]; ++i)
+		{
+			if (show) groups[g][i]->Hide(); else groups[g][i]->Show();
+		}
+	}
+	FOR_EACH(GUIButtonRef, i, guiHouseRuleToggles)
+	{
+		if (show) (*i)->Show(); else (*i)->Hide();
+	}
+	guiHouseRulesButton->SpecifyText(show ? "Back" : "House Rules");
+
+	// draw the page and keep it as the background the check boxes restore from
+	RenderGIOScreen();
+	BlitBufferToBuffer(FRAME_BUFFER, guiSAVEBUFFER, STD_SCREEN_X, STD_SCREEN_Y, 640, 439);
+	InvalidateScreen();
+}
+
+
+static void BtnHouseRulesCallback(GUI_BUTTON*, UINT32 const reason)
+{
+	if (reason & MSYS_CALLBACK_REASON_POINTER_UP)
+	{
+		ShowHouseRulesPage(!gfHouseRulesPage);
+	}
 }

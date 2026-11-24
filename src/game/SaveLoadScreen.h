@@ -23,6 +23,8 @@ void DoQuickSave(void);
 void DoAutoSave(void);
 void DoDeadIsDeadSave(void);
 void DoQuickLoad(void);
+// Load the named save from wherever the player is, with a quick fade.
+void LoadSaveInPlace(ST::string const& name);
 
 bool AreThereAnySavedGameFiles();
 

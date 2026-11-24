@@ -196,7 +196,14 @@ static void ExtractGameOptions(DataReader& d, GAME_OPTIONS& g)
 	EXTR_U8(   d, g.ubDifficultyLevel)
 	EXTR_BOOL( d, g.fTurnTimeLimit)
 	EXTR_U8(   d, g.ubGameSaveMode)
-	EXTR_SKIP( d, 7)
+	// house rules; anything but 1 counts as off, so stray bytes in old saves do no harm
+	UINT8 rule;
+	EXTR_U8(   d, rule) g.fInfiniteMines  = rule == 1;
+	EXTR_U8(   d, rule) g.fMoreMilitia    = rule == 1;
+	EXTR_U8(   d, rule) g.fWisdomLearning = rule == 1;
+	// co-op: 2 to 4 players; any other value is a normal game
+	EXTR_U8(   d, rule) g.ubCoopPlayers   = (rule >= 2 && rule <= 4) ? rule : 1;
+	EXTR_SKIP( d, 3)
 	Assert(d.getConsumed() == start + 12);
 }
 
@@ -209,7 +216,11 @@ static void InjectGameOptions(DataWriter& d, GAME_OPTIONS const& g)
 	INJ_U8(   d, g.ubDifficultyLevel)
 	INJ_BOOL( d, g.fTurnTimeLimit)
 	INJ_U8(   d, g.ubGameSaveMode)
-	INJ_SKIP( d, 7)
+	INJ_U8(   d, g.fInfiniteMines  ? 1 : 0)
+	INJ_U8(   d, g.fMoreMilitia    ? 1 : 0)
+	INJ_U8(   d, g.fWisdomLearning ? 1 : 0)
+	INJ_U8(   d, g.ubCoopPlayers >= 2 ? g.ubCoopPlayers : 0)
+	INJ_SKIP( d, 3)
 	Assert(d.getConsumed() == start + 12);
 }
 
@@ -511,8 +522,11 @@ BOOLEAN SaveGame(const ST::string& saveName, const ST::string& gameDesc)
 		return FALSE;
 	}
 
+	// co-op hands games over in saves named coop-*; they are not the player's saves
+	bool const coop_transfer = saveName.starts_with("coop-");
+
 	// If we succesfully saved the game, mark this entry as the last saved game file
-	if (!IsErrorSaveName(saveName) && !IsAutoSaveName(saveName))
+	if (!IsErrorSaveName(saveName) && !IsAutoSaveName(saveName) && !coop_transfer)
 	{
 		gGameSettings.sCurrentSavedGameName = saveName;
 		gGameSettings.sCurrentSavedGameDescription = gameDesc;
@@ -521,7 +535,7 @@ BOOLEAN SaveGame(const ST::string& saveName, const ST::string& gameDesc)
 	SaveGameSettings();
 
 	// Display a screen message that the save was succesful (unless we are in Dead is Dead Mode to prevent message spamming)
-	if (!IsAutoSaveName(saveName) && gGameOptions.ubGameSaveMode != DIF_DEAD_IS_DEAD)
+	if (!IsAutoSaveName(saveName) && !coop_transfer && gGameOptions.ubGameSaveMode != DIF_DEAD_IS_DEAD)
 	{
 		ScreenMsg(FONT_MCOLOR_WHITE, MSG_INTERFACE, pMessageStrings[MSG_SAVESUCCESS]);
 	}

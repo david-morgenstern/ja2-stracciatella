@@ -1,3 +1,5 @@
+#include "Banter.h"
+#include "CoopSync.h"
 #include "Interface_Dialogue.h"
 
 #include "AI.h"
@@ -192,6 +194,10 @@ static void InternalInitiateConversation(SOLDIERTYPE* pDestSoldier, SOLDIERTYPE*
 BOOLEAN InitiateConversationFull(SOLDIERTYPE* const pDestSoldier, SOLDIERTYPE* const pSrcSoldier, Approach const bApproach, UINT8 const approach_record, OBJECTTYPE* const approach_object)
 try
 {
+	// co-op guest: conversations run in the host's game (quests, facts and the
+	// like live there); everyone hears them
+	if (CoopSyncGuestTalk(*pDestSoldier, *pSrcSoldier, bApproach, approach_record, approach_object != nullptr)) return FALSE;
+
 	// ATE: OK, let's check the status of the Q
 	// If it has something in it....delay this until after....
 	if (DialogueQueueIsEmptyAndNobodyIsTalking())
@@ -286,6 +292,9 @@ static void InternalInitiateConversation(SOLDIERTYPE* const pDestSoldier, SOLDIE
 	gpSrcSoldier = pSrcSoldier;
 	gpDestSoldier = pDestSoldier;
 
+	// co-op: the guests open the same panel (before the first line arrives)
+	CoopSyncTalkPanelOpened(*pDestSoldier, pSrcSoldier);
+
 	// Say first line...
 	// CHRIS LOOK HERE
 	if ( gpSrcSoldier != NULL )
@@ -306,6 +315,9 @@ static void InternalInitiateConversation(SOLDIERTYPE* const pDestSoldier, SOLDIE
 	}
 
 	ConverseFull(gTalkPanel.ubCharNum, gubSrcSoldierProfile, bApproach, approach_record, approach_object);
+
+	// a character may react to who is standing in front of him
+	if (bApproach == NPC_INITIAL_QUOTE) BanterOnConversation(gTalkPanel.ubCharNum, gTalkPanel.face);
 
 	// If not from pedning...
 	if ( !fFromPending )
@@ -514,6 +526,8 @@ void DeleteTalkingMenu( )
 	if ( !gfInTalkPanel )
 		return;
 
+	CoopSyncTalkPanelClosed();
+
 	// Delete sound if playing....
 	ShutupaYoFace(gTalkPanel.face);
 
@@ -572,7 +586,7 @@ void DeleteTalkingMenu( )
 	// restore scroll messages in tactical
 	UnHideMessagesDuringNPCDialogue( );
 
-	if ( CheckFact( FACT_NEED_TO_SAY_SOMETHING, 0 ) )
+	if (!CoopSyncGuestFrozen() && CheckFact( FACT_NEED_TO_SAY_SOMETHING, 0 ) )
 	{
 		if ( DialogueQueueIsEmpty() && !gfWaitingForTriggerTimer )
 		{
@@ -797,10 +811,20 @@ static void TalkPanelClickCallback(MOUSE_REGION* pRegion, UINT32 iReason)
 
 	if (iReason & MSYS_CALLBACK_REASON_POINTER_UP)
 	{
+		// co-op guest: the host's game answers
+		if (CoopSyncGuestTalkChoice(ubTalkMenuApproachIDs[uiItemPos])) return;
+		ChooseTalkApproach(ubTalkMenuApproachIDs[uiItemPos]);
+	}
+}
+
+
+void ChooseTalkApproach(UINT8 const approach)
+{
+	{
 		// Donot do this if we are talking already
 		if (!gTalkPanel.face->fTalking)
 		{
-			if ( ubTalkMenuApproachIDs[ uiItemPos ] == APPROACH_BUYSELL )
+			if ( approach == APPROACH_BUYSELL )
 			{
 				//if its an arms dealer
 				if( IsMercADealer( gTalkPanel.ubCharNum ) )
@@ -852,7 +876,7 @@ static void TalkPanelClickCallback(MOUSE_REGION* pRegion, UINT32 iReason)
 			else
 			{
 				//Speak
-				Converse(gTalkPanel.ubCharNum, gubSrcSoldierProfile, ubTalkMenuApproachIDs[uiItemPos]);
+				Converse(gTalkPanel.ubCharNum, gubSrcSoldierProfile, static_cast<Approach>(approach));
 			}
 		}
 	}
@@ -4699,4 +4723,30 @@ static void CarmenLeavesSectorCallback(void)
 		TriggerNPCRecord(CARMEN, 36);
 	}
 
+}
+
+
+void CoopShowTalkPanel(SOLDIERTYPE* const dest, SOLDIERTYPE* const src)
+{
+	if (gfInTalkPanel) DeleteTalkingMenu();
+	InitTalkingMenu(dest->ubProfile, dest->sGridNo);
+	gpSrcSoldier         = src;
+	gpDestSoldier        = dest;
+	gubSrcSoldierProfile = src ? src->ubProfile : NO_PROFILE;
+
+	gTacticalStatus.uiFlags |= ENGAGED_IN_CONV;
+	guiPendingOverrideEvent = LU_ENDUILOCK;
+	HandleTacticalUI();
+	guiPendingOverrideEvent = TA_TALKINGMENU;
+	HandleTacticalUI();
+}
+
+
+void CoopCloseTalkPanelFromRemote()
+{
+	if (!gfInTalkPanel) return;
+	// as the Done button does
+	gTalkPanel.fHandled             = TRUE;
+	gTalkPanel.fHandledTalkingVal   = gTalkPanel.face->fTalking;
+	gTalkPanel.fHandledCanDeleteVal = TRUE;
 }

@@ -391,6 +391,12 @@ static void HandleMoraleEventForSoldier(SOLDIERTYPE* pSoldier, INT8 bMoraleEvent
 }
 
 
+void HandleBuddyDiedMorale(SOLDIERTYPE& s)
+{
+	HandleMoraleEventForSoldier(&s, MORALE_BUDDY_DIED);
+}
+
+
 void HandleMoraleEvent(SOLDIERTYPE *pSoldier, INT8 bMoraleEvent, const SGPSector& sMap)
 {
 	gfSomeoneSaidMoraleQuote = FALSE;

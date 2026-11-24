@@ -12,6 +12,7 @@
 #include "IMP_Text_System.h"
 #include "IMP_Finish.h"
 #include "IMP_Portraits.h"
+#include "IMP_Appearance.h"
 #include "IMP_Voices.h"
 #include "IMP_Personality_Entrance.h"
 #include "IMP_Attribute_Selection.h"
@@ -226,6 +227,9 @@ void HandleCharProfile(void)
 		case( IMP_PORTRAIT ):
 			HandleIMPPortraits( );
 			break;
+		case( IMP_APPEARANCE ):
+			HandleIMPAppearance();
+			break;
 		case( IMP_VOICE ):
 			HandleIMPVoices( );
 			break;
@@ -287,6 +291,9 @@ void RenderCharProfile(void)
 			break;
 		case( IMP_PORTRAIT ):
 			RenderIMPPortraits( );
+			break;
+		case( IMP_APPEARANCE ):
+			RenderIMPAppearance();
 			break;
 		case( IMP_VOICE ):
 			RenderIMPVoices( );
@@ -375,6 +382,10 @@ static void ExitOldIMPMode(void)
 			DestroyIMPButtons( );
 			ExitIMPPortraits( );
 			break;
+		case( IMP_APPEARANCE ):
+			DestroyIMPButtons( );
+			ExitIMPAppearance();
+			break;
 		case( IMP_VOICE ):
 			DestroyIMPButtons( );
 			ExitIMPVoices( );
@@ -444,6 +455,10 @@ static void EnterNewIMPMode(void)
 			CreateIMPButtons( );
 			EnterIMPPortraits( );
 			break;
+		case( IMP_APPEARANCE ):
+			CreateIMPButtons( );
+			EnterIMPAppearance();
+			break;
 		case( IMP_VOICE ):
 			CreateIMPButtons( );
 			EnterIMPVoices( );
@@ -490,6 +505,9 @@ void ResetCharacterStats( void )
 	// names
 	pFullName.clear();
 	pNickName.clear();
+
+	// looks
+	ResetIMPAppearance();
 }
 
 

@@ -1,4 +1,5 @@
 #include "Explosion_Control.h"
+#include "CoopSync.h"
 
 #include "AI.h"
 #include "Action_Items.h"
@@ -137,7 +138,53 @@ void InternalIgniteExplosion(SOLDIERTYPE* const owner, const INT16 sX, const INT
 	e->sCurrentFrame = 0;
 	GenerateExplosionFromExplosionPointer(e);
 
+	// co-op: the guests see it go off
+	CoopSyncExplosion(sX, sY, sZ, sGridNo, usItem, bLevel);
+
 	if (fLocate) LocateGridNo(sGridNo);
+}
+
+
+void ShowExplosionOnly(INT16 const sX, INT16 const sY, INT16 sZ, INT16 const sGridNo, UINT16 const usItem, INT8 const bLevel)
+{
+	auto const explosive = GCM->getExplosive(usItem);
+	if (!explosive) return;
+	auto explosionAnimation = explosive->getAnimation();
+	if (!explosionAnimation) return;
+
+	if (sZ == 0 && bLevel > 0) sZ = ROOF_LEVEL_HEIGHT;
+
+	// as GenerateExplosionFromExplosionPointer does, but no explosion data:
+	// no damage keyframe and nothing to report when it is over
+	ANITILE_PARAMS AniParams{};
+	AniParams.sGridNo     = sGridNo;
+	AniParams.ubLevelID   = ANI_TOPMOST_LEVEL;
+	AniParams.sDelay      = explosionAnimation->getBlastSpeed();
+	AniParams.sStartFrame = 0;
+	AniParams.uiFlags     = ANITILE_FORWARD;
+	if (Water(sGridNo))
+	{
+		auto waterAnimation = explosionAnimation->getWaterAnimation();
+		if (waterAnimation)
+		{
+			explosionAnimation = waterAnimation;
+			AniParams.uiFlags |= ANITILE_ALWAYS_TRANSLUCENT;
+		}
+	}
+	if (sZ < WALL_HEIGHT) AniParams.uiFlags |= ANITILE_NOZBLITTER;
+	AniParams.sX = sX;
+	AniParams.sY = sY;
+	AniParams.sZ = sZ;
+	AniParams.ubKeyFrame1     = explosionAnimation->getTransparentKeyframe();
+	AniParams.uiKeyFrame1Code = ANI_KEYFRAME_BEGIN_TRANSLUCENCY;
+	AniParams.zCachedFile     = explosionAnimation->getGraphics().c_str();
+	CreateAnimationTile(&AniParams);
+
+	auto && soundCandidates{ explosionAnimation->getSounds() };
+	if (!soundCandidates.empty())
+	{
+		PlayLocationJA2Sample(sGridNo, soundCandidates.at(Random(static_cast<UINT32>(soundCandidates.size()))), HIGHVOLUME, 1);
+	}
 }
 
 

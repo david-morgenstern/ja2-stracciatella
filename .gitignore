@@ -15,3 +15,6 @@ TAGS
 /compile_commands.json
 /*/CMakeUserPresets.json
 docs-generated/
+
+# Python bytecode from the tools
+__pycache__/

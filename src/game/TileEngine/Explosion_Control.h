@@ -10,6 +10,9 @@
 #define MAX_DISTANCE_EXPLOSIVE_CAN_DESTROY_STRUCTURES 2
 
 
+// Co-op guest: the blast as it looks and sounds, without doing anything.
+void ShowExplosionOnly(INT16 sX, INT16 sY, INT16 sZ, INT16 sGridNo, UINT16 usItem, INT8 bLevel);
+
 struct EXPLOSIONTYPE
 {
 	SOLDIERTYPE* owner;

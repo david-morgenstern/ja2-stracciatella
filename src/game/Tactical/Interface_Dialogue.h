@@ -59,6 +59,13 @@ void TalkingMenuDialogue(UINT16 usQuoteNum);
 // Removes memory allocated for structure, removes face...
 void DeleteTalkingMenu(void);
 
+// What clicking a choice in the talking menu does (talk, threaten, buy...).
+void ChooseTalkApproach(UINT8 approach);
+// Co-op: show the host's conversation on a guest, and close it when the
+// other side closes theirs.
+void CoopShowTalkPanel(SOLDIERTYPE* dest, SOLDIERTYPE* src);
+void CoopCloseTalkPanelFromRemote();
+
 BOOLEAN HandleTalkingMenu(void);
 
 void RenderTalkingMenu(void);

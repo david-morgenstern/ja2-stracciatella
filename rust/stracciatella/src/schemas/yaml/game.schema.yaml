@@ -577,6 +577,35 @@ properties:
       tolerance).
 
       Vanilla setting: `130`
+  raised_weapon_sight_bonus:
+    $ref: types/uint8.schema.yaml
+    title: Raised weapon sight bonus
+    description: |
+      Extra tiles a soldier sees straight ahead while his gun is raised. A merc raises it by shooting, or by
+      looking in the direction he already faces.
+
+      Vanilla setting: `0`
+  raised_weapon_interrupt_bonus:
+    $ref: types/uint8.schema.yaml
+    title: Raised weapon interrupt bonus
+    description: |
+      Extra interrupt points a soldier gets against someone in front of him while his gun is raised.
+
+      Vanilla setting: `0`
+  raised_weapon_scope_sight_bonus:
+    $ref: types/uint8.schema.yaml
+    title: Raised weapon scope sight bonus
+    description: |
+      Extra tiles of sight, on top of the raised weapon bonus, while the raised gun has a sniper scope.
+
+      Vanilla setting: `0`
+  raised_weapon_scope_interrupt_bonus:
+    $ref: types/uint8.schema.yaml
+    title: Raised weapon scope interrupt bonus
+    description: |
+      Extra interrupt points, on top of the raised weapon bonus, while the raised gun has a sniper scope.
+
+      Vanilla setting: `0`
 required:
   - extra_hotkeys
   - can_enter_turnbased

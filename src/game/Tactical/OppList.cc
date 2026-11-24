@@ -1,3 +1,5 @@
+#include "Banter.h"
+#include "Weapons.h"
 #include "Font.h"
 #include "AI.h"
 #include "Debug_Pages.h"
@@ -946,6 +948,13 @@ INT16 DistanceVisible(const SOLDIERTYPE* pSoldier, INT8 bFacingDir, INT8 bSubjec
 		}
 	}
 
+	// a raised gun means looking down its sights: a little further straight ahead
+	if (bFacingDir != DIRECTION_IRRELEVANT &&
+		gbLookDistance[bFacingDir][bSubjectDir] == STRAIGHT)
+	{
+		sDistVisible += RaisedWeaponSightBonus(*pSoldier);
+	}
+
 	if (pSoldier->bLevel != bLevel)
 	{
 		// add two tiles distance to visibility to/from roofs
@@ -1786,6 +1795,9 @@ static void ManSeesMan(SOLDIERTYPE& s, SOLDIERTYPE& opponent, UINT8 const caller
 			{
 				new_opponent = true;
 				++s.bNewOppCnt; // increment looker's NEW opponent count
+
+				// the enemy may know exactly who he is looking at
+				if (s.bTeam != OUR_TEAM && !s.bNeutral && opponent.bTeam == OUR_TEAM) BanterOnEnemySighting(s, opponent);
 
 				IncrementWatchedLoc(&s, opponent.sGridNo, opponent.bLevel);
 

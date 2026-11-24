@@ -156,8 +156,8 @@ struct AUTORESOLVE_STRUCT
 	MOUSE_REGION AutoResolveRegion;
 
 	std::array<SOLDIERCELL, 20> mercs;
-	//Militia -- MAX_ALLOWABLE_MILITIA_PER_SECTOR max
-	std::array<SOLDIERCELL, MAX_ALLOWABLE_MILITIA_PER_SECTOR> civs;
+	//Militia -- MAX_MILITIA_SLOTS_PER_SECTOR max
+	std::array<SOLDIERCELL, MAX_MILITIA_SLOTS_PER_SECTOR> civs;
 	//Enemies -- 32 max
 	std::array<SOLDIERCELL, 32> enemies;
 };
@@ -1726,7 +1726,7 @@ static void RemoveAutoResolveInterface()
 	gbGreenToRegPromotions   = 0;
 	gbRegToElitePromotions   = 0;
 	gbMilitiaPromotions      = 0;
-	for (INT32 i = 0; i != MAX_ALLOWABLE_MILITIA_PER_SECTOR; ++i)
+	for (INT32 i = 0; i != MAX_MILITIA_SLOTS_PER_SECTOR; ++i)
 	{
 		if (!gpCivs[i].pSoldier) continue;
 		SOLDIERTYPE& s = *gpCivs[i].pSoldier;

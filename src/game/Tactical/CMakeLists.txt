@@ -7,10 +7,15 @@ set(LOCAL_JA2_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/ArmsDealerInvInit.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Arms_Dealer_Init.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Auto_Bandage.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/Banter.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Boxing.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Bullets.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Campaign.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Civ_Quotes.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/Coop.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/CoopNet.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/CoopSocket.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/CoopSync.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Dialogue_Control.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/DisplayCover.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/Drugs_And_Alcohol.cc
@@ -82,6 +87,7 @@ set(LOCAL_JA2_SOURCES
 if (WITH_UNITTESTS)
     set(LOCAL_JA2_SOURCES
         ${LOCAL_JA2_SOURCES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/Coop_unittest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/IMPPolicy_unittest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/IMPProfileJson_unittest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/LoadSaveMercProfile_unittest.cc

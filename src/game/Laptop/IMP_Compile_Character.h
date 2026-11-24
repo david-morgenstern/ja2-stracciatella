@@ -68,6 +68,9 @@ INT32 FindIMPPortraitByFace( UINT8 ubFaceIndex );
  * this, so the two cannot describe different people. */
 bool IMPCharacterHasBigBody( const MERCPROFILESTRUCT& p );
 
+// the strength a character has to be made with to be given the big male build
+#define IMP_BIG_BODY_MIN_STRENGTH 75
+
 /** The portrait the character being built wears. Every screen takes its index
  * from GetIMPPortraitIndex, so it is only ever out of range if the data changed
  * under a half built character. */

@@ -1,4 +1,6 @@
 #include "GameLoop.h"
+#include "CoopSync.h"
+#include "CoopNet.h"
 #include "GameVersion.h"
 #include "Input.h"
 #include "SGP.h"
@@ -116,6 +118,7 @@ try
 	// Hook into mouse stuff for MOVEMENT MESSAGES
 	MouseSystemHook(MOUSE_POS, 0, MousePos.iX, MousePos.iY);
 	MusicPoll();
+	CoopNetPoll(); // co-op: talk to the relay
 
 	HandleSingleClicksAndButtonRepeats();
 	while (DequeueSpecificEvent(&InputEvent, MOUSE_EVENTS))
@@ -187,11 +190,17 @@ try
 		}
 
 		// if the screen has chnaged
+		// co-op guest: the laptop is the host's
+		if (guiPendingScreen == LAPTOP_SCREEN && !CoopSyncGuestMayEnter(LAPTOP_SCREEN))
+		{
+			guiPendingScreen = guiCurrentScreen;
+		}
 		if( uiOldScreen != guiPendingScreen )
 		{
 			// Set the fact that the screen has changed
 			uiOldScreen = guiPendingScreen;
 
+			SLOGI("screen {} -> {} (pending)", static_cast<int>(guiCurrentScreen), static_cast<int>(guiPendingScreen));
 			HandleNewScreenChange( guiPendingScreen, guiCurrentScreen );
 		}
 		guiCurrentScreen = guiPendingScreen;
@@ -203,9 +212,16 @@ try
 
 	uiOldScreen = (*(GameScreens[guiCurrentScreen].HandleScreen))();
 
+	// co-op guest: the laptop is the host's
+	if (uiOldScreen == LAPTOP_SCREEN && guiCurrentScreen != LAPTOP_SCREEN && !CoopSyncGuestMayEnter(LAPTOP_SCREEN))
+	{
+		uiOldScreen = guiCurrentScreen;
+	}
+
 	// if the screen has chnaged
 	if( uiOldScreen != guiCurrentScreen )
 	{
+		SLOGI("screen {} -> {}", static_cast<int>(guiCurrentScreen), static_cast<int>(uiOldScreen));
 		HandleNewScreenChange( uiOldScreen, guiCurrentScreen );
 		guiCurrentScreen = uiOldScreen;
 	}

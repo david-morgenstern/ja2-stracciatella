@@ -1,3 +1,6 @@
+#include "Banter.h"
+#include "CoopSync.h"
+#include "Coop.h"
 #include "Overhead.h"
 
 #include "Adjacency.h"
@@ -488,8 +491,11 @@ void ExecuteOverhead(void)
 		// ANIMATED TILE STUFF
 		UpdateAniTiles();
 
+		// co-op guest: the host's game plays; ours only shows it
+		bool const coop_guest = CoopSyncGuestFrozen();
+
 		// BOMBS!!!
-		HandleExplosionQueue();
+		if (!coop_guest) HandleExplosionQueue();
 
 		HandleCreatureTenseQuote();
 
@@ -668,7 +674,7 @@ void ExecuteOverhead(void)
 				// Handle animation update counters
 				// ATE: Added additional check here for special value of anispeed that pauses all updates
 #ifndef BOUNDS_CHECKER
-				if (pSoldier->sAniDelay != 10000 &&
+				if (!coop_guest && pSoldier->sAniDelay != 10000 &&
 				    TIMECOUNTERDONE(pSoldier->UpdateCounter, pSoldier->sAniDelay))
 #endif
 				{
@@ -1033,7 +1039,7 @@ void ExecuteOverhead(void)
 					}
 				}
 
-				if (!gfPauseAllAI && (
+				if (!coop_guest && !gfPauseAllAI && (
 					(gTacticalStatus.uiFlags & INCOMBAT) ||
 					(fHandleAI && guiAISlotToHandle == cnt) ||
 					pSoldier->fAIFlags & AI_HANDLE_EVERY_FRAME ||
@@ -1969,7 +1975,7 @@ void SelectNextAvailSoldier(const SOLDIERTYPE* const last)
 	// IF IT'S THE SELECTED GUY, MAKE ANOTHER SELECTED!
 	FOR_EACH_IN_TEAM(s, last->bTeam)
 	{
-		if (OkControllableMerc(s))
+		if (OkControllableMerc(s) && CoopIsLocalMerc(*s))
 		{
 			SelectSoldier(s, SELSOLDIER_NONE);
 			return;
@@ -1998,6 +2004,16 @@ void SelectSoldier(SOLDIERTYPE* const s, const SelSoldierFlags flags)
 	// If we are dead, ignore
 	if (!OK_CONTROLLABLE_MERC(s)) return;
 
+	// co-op: another player's merc
+	if (!CoopIsLocalMerc(*s))
+	{
+		if (flags & SELSOLDIER_FROM_UI)
+		{
+			ScreenMsg(FONT_MCOLOR_LTYELLOW, MSG_UI_FEEDBACK, s->name + " takes orders from " + CoopPlayerName(CoopOwner(*s)) + ".");
+		}
+		return;
+	}
+
 	// Don't do it if we don't have an interrupt
 	if (!OK_INTERRUPT_MERC(s))
 	{
@@ -2010,7 +2026,11 @@ void SelectSoldier(SOLDIERTYPE* const s, const SelSoldierFlags flags)
 	}
 
 	SOLDIERTYPE* const old_sel = GetSelectedMan();
-	if (s == old_sel && !(flags & SELSOLDIER_FORCE_RESELECT)) return;
+	if (s == old_sel && !(flags & SELSOLDIER_FORCE_RESELECT))
+	{
+		if ((flags & SELSOLDIER_ACKNOWLEDGE) && (flags & SELSOLDIER_FROM_UI)) DoMercSelectSound(*s, true);
+		return;
+	}
 
 	// Unselect old selected guy
 	if (old_sel != NULL)
@@ -2042,9 +2062,9 @@ void SelectSoldier(SOLDIERTYPE* const s, const SelSoldierFlags flags)
 	SetCurrentTacticalPanelCurrentMerc(s);
 
 	// PLay ATTN SOUND
-	if (flags & SELSOLDIER_ACKNOWLEDGE && !gGameSettings.fOptions[TOPTION_MUTE_CONFIRMATIONS])
+	if (flags & SELSOLDIER_ACKNOWLEDGE)
 	{
-		DoMercBattleSound(s, BATTLE_SOUND_ATTN1);
+		DoMercSelectSound(*s, false);
 	}
 
 	// Change UI mode to reflact that we are selected
@@ -2205,6 +2225,9 @@ void HandlePlayerTeamMemberDeath(SOLDIERTYPE* pSoldier)
 		{
 			CancelAIAction(pSoldier->auto_bandaging_medic);
 		}
+
+		// friendships the buddy slots cannot hold
+		BanterOnDeath(*pSoldier);
 
 		// see if this was the friend of a living merc
 		FOR_EACH_IN_TEAM(s, pSoldier->bTeam)
@@ -2896,6 +2919,7 @@ static SOLDIERTYPE* FindNextActiveSquadRange(INT8 begin, INT8 end)
 			if (!s->bInSector)                      continue;
 			if (!OK_INTERRUPT_MERC(s))              continue;
 			if (!OK_CONTROLLABLE_MERC(s))           continue;
+			if (!CoopIsLocalMerc(*s))               continue;
 			if (s->uiStatusFlags & SOLDIER_VEHICLE) continue;
 			return s;
 		}
@@ -4568,6 +4592,9 @@ BOOLEAN CheckForEndOfBattle( BOOLEAN fAnEnemyRetreated )
 						SayQuoteFromAnyBodyInSector(QUOTE_SECTOR_SAFE);
 					}
 				}
+
+				// and someone may have a word about who carried the day
+				BanterOnBattleWon();
 
 			}
 			else

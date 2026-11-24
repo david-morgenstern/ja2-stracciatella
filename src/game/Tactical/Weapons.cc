@@ -1,4 +1,5 @@
 #include "ArmourModel.h"
+#include "CoopSync.h"
 #include "Directories.h"
 #include "Font_Control.h"
 #include "Handle_Items.h"
@@ -540,7 +541,7 @@ static UINT16 ModifyExpGainByTarget(const UINT16 exp_gain, const SOLDIERTYPE* co
 static BOOLEAN WillExplosiveWeaponFail(const SOLDIERTYPE* pSoldier, const OBJECTTYPE* pObj);
 
 
-static ST::string GetBurstSoundName(SOLDIERTYPE const& soldier)
+ST::string GetBurstSoundName(SOLDIERTYPE const& soldier)
 {
 	auto * const weapon = GCM->getWeapon(soldier.usAttackingWeapon);
 	bool isSilenced = FindAttachment(&soldier.inv[soldier.ubAttackingHand], SILENCER) != NO_SLOT;
@@ -1745,6 +1746,9 @@ void StructureHit(BULLET* const pBullet, const UINT16 usStructureID, const INT32
 		{
 			if (!fStopped || !DoSpecialEffectAmmoMiss(attacker, sGridNo, sXPos, sYPos, sZPos, FALSE, TRUE, pBullet))
 			{
+				// co-op: the guests see the puff and hear it
+				CoopSyncBulletMiss(sGridNo, sXPos, sYPos, sZPos);
+
 				if ( sZPos == 0 )
 				{
 					PlayJA2Sample(MISS_G2, uiMissVolume, 1, SoundDir(sGridNo));
@@ -3894,3 +3898,80 @@ static BOOLEAN WillExplosiveWeaponFail(const SOLDIERTYPE* pSoldier, const OBJECT
 // }
 
 // #endif
+
+
+static bool HasGunRaised(SOLDIERTYPE const& s)
+{
+	return (gAnimControl[s.usAnimState].uiFlags & ANIM_FIREREADY) &&
+		GCM->getItem(s.inv[HANDPOS].usItem)->getItemClass() == IC_GUN;
+}
+
+
+static bool HasScopeOnGun(SOLDIERTYPE const& s)
+{
+	return FindAttachment(&s.inv[HANDPOS], SNIPERSCOPE) != ITEM_NOT_FOUND;
+}
+
+
+INT32 RaisedWeaponSightBonus(SOLDIERTYPE const& s)
+{
+	if (!HasGunRaised(s)) return 0;
+	INT32 bonus = gamepolicy(raised_weapon_sight_bonus);
+	if (HasScopeOnGun(s)) bonus += gamepolicy(raised_weapon_scope_sight_bonus);
+	return bonus;
+}
+
+
+INT32 RaisedWeaponInterruptBonus(SOLDIERTYPE const& s)
+{
+	if (!HasGunRaised(s)) return 0;
+	INT32 bonus = gamepolicy(raised_weapon_interrupt_bonus);
+	if (HasScopeOnGun(s)) bonus += gamepolicy(raised_weapon_scope_interrupt_bonus);
+	return bonus;
+}
+
+
+void ShowBulletMissOnly(INT16 const sGridNo, INT16 const sXPos, INT16 const sYPos, INT16 const sZPos)
+{
+	// what StructureHit shows for a bullet that hits the ground or a wall,
+	// without the attacker's bookkeeping
+	if (sZPos == 0)
+	{
+		PlayJA2Sample(MISS_G2, MIDVOLUME, 1, SoundDir(sGridNo));
+	}
+	else
+	{
+		PlayJA2Sample(SoundRange<MISS_1, MISS_8>(), MIDVOLUME, 1, SoundDir(sGridNo));
+	}
+
+	UINT16 usMissTileIndex = FIRSTMISS1;
+	ANITILE_PARAMS AniParams;
+	ANITILE* pNode;
+	if (gpWorldLevelData[sGridNo].ubTerrainID == LOW_WATER || gpWorldLevelData[sGridNo].ubTerrainID == DEEP_WATER)
+	{
+		usMissTileIndex = SECONDMISS1;
+		AniParams = ANITILE_PARAMS{};
+		AniParams.sGridNo     = sGridNo;
+		AniParams.ubLevelID   = ANI_STRUCT_LEVEL;
+		AniParams.usTileIndex = THIRDMISS1;
+		AniParams.sDelay      = 50;
+		AniParams.uiFlags     = ANITILE_FORWARD;
+		pNode = CreateAnimationTile(&AniParams);
+		pNode->pLevelNode->uiFlags |= LEVELNODE_USEABSOLUTEPOS;
+		pNode->pLevelNode->sRelativeX = sXPos;
+		pNode->pLevelNode->sRelativeY = sYPos;
+		pNode->pLevelNode->sRelativeZ = sZPos;
+	}
+
+	AniParams = ANITILE_PARAMS{};
+	AniParams.sGridNo     = sGridNo;
+	AniParams.ubLevelID   = ANI_STRUCT_LEVEL;
+	AniParams.usTileIndex = usMissTileIndex;
+	AniParams.sDelay      = 80;
+	AniParams.uiFlags     = ANITILE_FORWARD;
+	pNode = CreateAnimationTile(&AniParams);
+	pNode->pLevelNode->uiFlags |= LEVELNODE_USEABSOLUTEPOS;
+	pNode->pLevelNode->sRelativeX = sXPos;
+	pNode->pLevelNode->sRelativeY = sYPos;
+	pNode->pLevelNode->sRelativeZ = sZPos;
+}

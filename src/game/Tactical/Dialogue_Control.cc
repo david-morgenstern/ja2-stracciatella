@@ -1,3 +1,5 @@
+#include "Banter.h"
+#include "CoopSync.h"
 #include "Dialogue_Control.h"
 #include "AI.h"
 #include "AIMMembers.h"
@@ -590,6 +592,13 @@ BOOLEAN TacticalCharacterDialogue(const SOLDIERTYPE* pSoldier, UINT16 usQuoteNum
 		}
 	}
 
+	// a voice that says this line as a plain sound does that instead
+	if (HasMercQuoteSound(*pSoldier, usQuoteNum))
+	{
+		MakeCharacterDialogueEventDoQuoteSound(*const_cast<SOLDIERTYPE*>(pSoldier), usQuoteNum);
+		return TRUE;
+	}
+
 	CharacterDialogue(pSoldier->ubProfile, usQuoteNum, pSoldier->face, DIALOGUE_TACTICAL_UI, TRUE);
 	return TRUE;
 }
@@ -817,6 +826,9 @@ BOOLEAN ExecuteCharacterDialogue(UINT8 const ubCharacterNum, UINT16 const usQuot
 	SetFaceTalking(*face, zSoundString, gzQuoteStr);
 	CreateTalkingUI(bUIHandlerID, *face, ubCharacterNum, gzQuoteStr);
 
+	// co-op: everyone hears it
+	CoopSyncSpeech(ubCharacterNum, usQuoteNum, useAlternateDialogueFile);
+
 	// Set global handleer ID value, used when face desides it's done...
 	gbUIHandlerID = bUIHandlerID;
 
@@ -882,6 +894,11 @@ static void CreateTalkingUI(DialogueHandler bUIHandlerID, FACETYPE& f, UINT8 ubC
 
 static BOOLEAN GetDialogue(const MercProfile &profile, UINT16 usQuoteNum, ST::string& zDialogueText, ST::string& zSoundString, bool useAlternateDialogueFile)
 {
+	// lines from banter.json come under quote numbers of their own, and some
+	// are other takes on a character's own quotes
+	if (GetBanterLine(usQuoteNum, zDialogueText, zSoundString)) return TRUE;
+	if (!useAlternateDialogueFile && GetBanterAlternate(profile.getID(), usQuoteNum, zDialogueText, zSoundString)) return TRUE;
+
 	// first things first  - gDIALOGUESIZErab the text (if player has SUBTITLE PREFERENCE ON)
 	//if ( gGameSettings.fOptions[ TOPTION_SUBTITLES ] )
 	{
@@ -1379,6 +1396,14 @@ void SayQuoteFromAnyBodyInSector(UINT16 const quote_id)
 
 		mercs_in_sector[n_mercs++] = &s;
 	}
+
+	// someone who has a sound of his own for this line gets to say it
+	INT32 n_with_sound = 0;
+	for (INT32 i = 0; i != n_mercs; ++i)
+	{
+		if (HasMercQuoteSound(*mercs_in_sector[i], quote_id)) mercs_in_sector[n_with_sound++] = mercs_in_sector[i];
+	}
+	if (n_with_sound != 0) n_mercs = n_with_sound;
 
 	ChooseRedIfPresentAndAirRaid(mercs_in_sector, n_mercs, quote_id);
 }

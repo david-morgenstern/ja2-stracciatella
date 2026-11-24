@@ -1,4 +1,6 @@
 #include "Buffer.h"
+#include "CoopSync.h"
+#include "RenderWorld.h"
 #include "Handle_Items.h"
 #include "Structure.h"
 #include "TileDef.h"
@@ -53,6 +55,9 @@ static void SaveModifiedMapStructToMapTempFile(MODIFY_MAP const* const pMap, con
 {
 	std::unique_ptr<AutoSGPFile> hFile = OpenMapModificationTempFile(sSector);
 	SaveModifiedMapStructToMapTempFile(pMap, *hFile);
+
+	// co-op: the guests make the same change to their map
+	if (sSector == gWorldSector) CoopSyncMapChange(*pMap);
 }
 
 
@@ -62,6 +67,137 @@ static void DamageStructsFromMapTempFile(MODIFY_MAP* pMap);
 static bool ModifyWindowStatus(GridNo);
 static void RemoveSavedStructFromMap(UINT32 uiMapIndex, UINT16 usIndex);
 static void SetOpenableStructStatusFromMapTempFile(UINT32 uiMapIndex, BOOLEAN fOpened);
+
+
+// Applies one map change to the loaded map. Returns whether it belongs in the
+// temp file again (some only matter once).
+static bool ApplyMapChange(MODIFY_MAP* const pMap)
+{
+	bool save_back = false;
+	//Switch on the type that should either be added or removed from the map
+	switch( pMap->ubType )
+	{
+		//If we are adding to the map
+		case SLM_LAND:
+			break;
+		case SLM_OBJECT:
+		{
+			UINT16 usIndex = GetTileIndexFromTypeSubIndex(pMap->usImageType, pMap->usSubImageIndex);
+			AddObjectFromMapTempFileToMap( pMap->usGridNo, usIndex );
+
+			save_back = true; // it stays in the temp file
+			break;
+		}
+
+		case SLM_STRUCT:
+		{
+			UINT16 const usIndex = GetTileIndexFromTypeSubIndex(pMap->usImageType, pMap->usSubImageIndex);
+			if (!IndexExistsInStructLayer(pMap->usGridNo, usIndex))
+			{
+				AddStructToTail(pMap->usGridNo, usIndex);
+			}
+
+			save_back = true; // it stays in the temp file
+			break;
+		}
+
+		case SLM_SHADOW:
+			break;
+		case SLM_MERC:
+			break;
+		case SLM_ROOF:
+			break;
+		case SLM_ONROOF:
+			break;
+		case SLM_TOPMOST:
+			break;
+
+
+		//Remove objects out of the world
+		case SLM_REMOVE_LAND:
+			break;
+		case SLM_REMOVE_OBJECT:
+			break;
+		case SLM_REMOVE_STRUCT:
+
+			// ATE: OK, dor doors, the usIndex can be varied, opened, closed, etc
+			// we MUSTR delete ANY door type on this gridno
+			// Since we can only have one door per gridno, we're safe to do so.....
+			if ( pMap->usImageType >= FIRSTDOOR && pMap->usImageType <= FOURTHDOOR )
+			{
+				// Remove ANY door...
+				RemoveAllStructsOfTypeRange( pMap->usGridNo, FIRSTDOOR, FOURTHDOOR );
+			}
+			else
+			{
+				UINT16 usIndex = GetTileIndexFromTypeSubIndex(pMap->usImageType, pMap->usSubImageIndex);
+				RemoveSavedStructFromMap( pMap->usGridNo, usIndex );
+			}
+
+			save_back = true; // it stays in the temp file
+			break;
+		case SLM_REMOVE_SHADOW:
+			break;
+		case SLM_REMOVE_MERC:
+			break;
+		case SLM_REMOVE_ROOF:
+			break;
+		case SLM_REMOVE_ONROOF:
+			break;
+		case SLM_REMOVE_TOPMOST:
+			break;
+
+
+		case SLM_BLOOD_SMELL:
+			AddBloodOrSmellFromMapTempFileToMap( pMap );
+			break;
+
+		case SLM_DAMAGED_STRUCT:
+			DamageStructsFromMapTempFile( pMap );
+			break;
+
+		case SLM_EXIT_GRIDS:
+			{
+				EXITGRID ExitGrid;
+				gfLoadingExitGrids = TRUE;
+				ExitGrid.usGridNo = pMap->usSubImageIndex;
+				ExitGrid.ubGotoSector.x = (UINT8) pMap->usImageType;
+				ExitGrid.ubGotoSector.y = (UINT8) ( pMap->usImageType >> 8 ) ;
+				ExitGrid.ubGotoSector.z = pMap->ubExtra;
+
+				AddExitGridToWorld( pMap->usGridNo, &ExitGrid );
+				gfLoadingExitGrids = FALSE;
+
+				save_back = true; // it stays in the temp file
+			}
+			break;
+
+		case SLM_OPENABLE_STRUCT:
+			SetOpenableStructStatusFromMapTempFile( pMap->usGridNo, (BOOLEAN)pMap->usImageType );
+			break;
+
+		case SLM_WINDOW_HIT:
+			if ( ModifyWindowStatus( pMap->usGridNo ) )
+			{
+				save_back = true; // it stays in the temp file
+			}
+			break;
+
+		default:
+			SLOGA("Map Type not in switch when loading map changes from temp file");
+			break;
+	}
+
+	return save_back;
+}
+
+
+void ApplyMapChangeLive(MODIFY_MAP const& change)
+{
+	MODIFY_MAP m = change;
+	ApplyMapChange(&m);
+	SetRenderFlags(RENDER_FLAG_FULL);
+}
 
 
 void LoadAllMapChangesFromMapTempFileAndApplyThem()
@@ -96,138 +232,10 @@ void LoadAllMapChangesFromMapTempFileAndApplyThem()
 	{
 		pMap = &pTempArrayOfMaps[ cnt ];
 
-		//Switch on the type that should either be added or removed from the map
-		switch( pMap->ubType )
+		if (ApplyMapChange(pMap))
 		{
-			//If we are adding to the map
-			case SLM_LAND:
-				break;
-			case SLM_OBJECT:
-			{
-				UINT16 usIndex = GetTileIndexFromTypeSubIndex(pMap->usImageType, pMap->usSubImageIndex);
-				AddObjectFromMapTempFileToMap( pMap->usGridNo, usIndex );
-
-				// Save this struct back to the temp file
-				SaveModifiedMapStructToMapTempFile(pMap, *tempMapFile);
-
-				//Since the element is being saved back to the temp file, increment the #
-				uiNumberOfElementsSavedBackToFile++;
-				break;
-			}
-
-			case SLM_STRUCT:
-			{
-				UINT16 const usIndex = GetTileIndexFromTypeSubIndex(pMap->usImageType, pMap->usSubImageIndex);
-				if (!IndexExistsInStructLayer(pMap->usGridNo, usIndex))
-				{
-					AddStructToTail(pMap->usGridNo, usIndex);
-				}
-
-				// Save this struct back to the temp file
-				SaveModifiedMapStructToMapTempFile(pMap, *tempMapFile);
-
-				//Since the element is being saved back to the temp file, increment the #
-				uiNumberOfElementsSavedBackToFile++;
-				break;
-			}
-
-			case SLM_SHADOW:
-				break;
-			case SLM_MERC:
-				break;
-			case SLM_ROOF:
-				break;
-			case SLM_ONROOF:
-				break;
-			case SLM_TOPMOST:
-				break;
-
-
-			//Remove objects out of the world
-			case SLM_REMOVE_LAND:
-				break;
-			case SLM_REMOVE_OBJECT:
-				break;
-			case SLM_REMOVE_STRUCT:
-
-				// ATE: OK, dor doors, the usIndex can be varied, opened, closed, etc
-				// we MUSTR delete ANY door type on this gridno
-				// Since we can only have one door per gridno, we're safe to do so.....
-				if ( pMap->usImageType >= FIRSTDOOR && pMap->usImageType <= FOURTHDOOR )
-				{
-					// Remove ANY door...
-					RemoveAllStructsOfTypeRange( pMap->usGridNo, FIRSTDOOR, FOURTHDOOR );
-				}
-				else
-				{
-					UINT16 usIndex = GetTileIndexFromTypeSubIndex(pMap->usImageType, pMap->usSubImageIndex);
-					RemoveSavedStructFromMap( pMap->usGridNo, usIndex );
-				}
-
-				// Save this struct back to the temp file
-				SaveModifiedMapStructToMapTempFile(pMap, *tempMapFile);
-
-				//Since the element is being saved back to the temp file, increment the #
-				uiNumberOfElementsSavedBackToFile++;
-				break;
-			case SLM_REMOVE_SHADOW:
-				break;
-			case SLM_REMOVE_MERC:
-				break;
-			case SLM_REMOVE_ROOF:
-				break;
-			case SLM_REMOVE_ONROOF:
-				break;
-			case SLM_REMOVE_TOPMOST:
-				break;
-
-
-			case SLM_BLOOD_SMELL:
-				AddBloodOrSmellFromMapTempFileToMap( pMap );
-				break;
-
-			case SLM_DAMAGED_STRUCT:
-				DamageStructsFromMapTempFile( pMap );
-				break;
-
-			case SLM_EXIT_GRIDS:
-				{
-					EXITGRID ExitGrid;
-					gfLoadingExitGrids = TRUE;
-					ExitGrid.usGridNo = pMap->usSubImageIndex;
-					ExitGrid.ubGotoSector.x = (UINT8) pMap->usImageType;
-					ExitGrid.ubGotoSector.y = (UINT8) ( pMap->usImageType >> 8 ) ;
-					ExitGrid.ubGotoSector.z = pMap->ubExtra;
-
-					AddExitGridToWorld( pMap->usGridNo, &ExitGrid );
-					gfLoadingExitGrids = FALSE;
-
-					// Save this struct back to the temp file
-					SaveModifiedMapStructToMapTempFile(pMap, *tempMapFile);
-
-					//Since the element is being saved back to the temp file, increment the #
-					uiNumberOfElementsSavedBackToFile++;
-				}
-				break;
-
-			case SLM_OPENABLE_STRUCT:
-				SetOpenableStructStatusFromMapTempFile( pMap->usGridNo, (BOOLEAN)pMap->usImageType );
-				break;
-
-			case SLM_WINDOW_HIT:
-				if ( ModifyWindowStatus( pMap->usGridNo ) )
-				{
-					// Save this struct back to the temp file
-					SaveModifiedMapStructToMapTempFile(pMap, *tempMapFile);
-
-					//Since the element is being saved back to the temp file, increment the #
-					uiNumberOfElementsSavedBackToFile++;
-				}
-				break;
-
-			default:
-				SLOGA("Map Type not in switch when loading map changes from temp file");
-				break;
+			SaveModifiedMapStructToMapTempFile(pMap, *tempMapFile);
+			uiNumberOfElementsSavedBackToFile++;
 		}
 
 	}

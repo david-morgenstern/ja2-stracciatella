@@ -1,4 +1,8 @@
 #include "Font_Control.h"
+#include <cstdlib>
+#include "CoopSync.h"
+#include "CoopNet.h"
+#include "Coop.h"
 #include "Handle_Doors.h"
 #include "ItemModel.h"
 #include "Items.h"
@@ -1065,6 +1069,9 @@ static ScreenID UIHandleEnterEditMode(UI_EVENT* pUIEvent)
 
 ScreenID UIHandleEndTurn(UI_EVENT* pUIEvent)
 {
+	// co-op guest: the host ends turns
+	if (CoopSyncGuestEndTurn()) return GAME_SCREEN;
+
 	CancelItemPointer( );
 
 	// If we show tactical touch ui hide it and reset cursor target
@@ -1077,14 +1084,29 @@ ScreenID UIHandleEndTurn(UI_EVENT* pUIEvent)
 		return GAME_SCREEN;
 	}
 
-	if (CanGameBeSaved())
+	// co-op: the turn only ends once every player is done with it
+	if (!CoopLocalPlayerEndsTurn())
+	{
+		CoopHandOverAfterEndTurn();
+		CoopNetTellGuests(CoopPlayerName(CoopLocalPlayer()) + " is done with the turn.");
+		return GAME_SCREEN;
+	}
+
+	FinishPlayerTurn();
+	return GAME_SCREEN;
+}
+
+
+void FinishPlayerTurn()
+{
+	// co-op test runs must not overwrite the player's autosaves
+	if (CanGameBeSaved() && !getenv("JA2_COOP_TEST_LIVE"))
 	{
 		guiPreviousOptionScreen = guiCurrentScreen;
 		DoAutoSave();
 	}
 
 	EndTurn(OUR_TEAM + 1);
-	return GAME_SCREEN;
 }
 
 static ScreenID UIHandleTestHit(UI_EVENT* pUIEvent)
@@ -1639,7 +1661,7 @@ static ScreenID UIHandleCMoveMerc(UI_EVENT* pUIEvent)
 			// TODO: Only our squad!
 			FOR_EACH_IN_TEAM(pSoldier, OUR_TEAM)
 			{
-				if (OkControllableMerc(pSoldier) && pSoldier->bAssignment == CurrentSquad() && !pSoldier->fMercAsleep)
+				if (OkControllableMerc(pSoldier) && CoopIsLocalMerc(*pSoldier) && pSoldier->bAssignment == CurrentSquad() && !pSoldier->fMercAsleep)
 				{
 					// If we can't be controlled, returninvalid...
 					if ( pSoldier->uiStatusFlags & SOLDIER_ROBOT )
@@ -1717,6 +1739,11 @@ static ScreenID UIHandleCMoveMerc(UI_EVENT* pUIEvent)
 				else
 				{
 					sActionGridNo = FindAdjacentGridEx(sel, sIntTileGridNo, &ubDirection, NULL, FALSE, TRUE);
+				}
+				// co-op guest: the host walks there and uses it
+				if (sActionGridNo != -1 && CoopSyncGuestMove(*sel, sActionGridNo, sel->usUIMovementMode, gUIUseReverse, sIntTileGridNo, ubDirection))
+				{
+					return GAME_SCREEN;
 				}
 				if (sActionGridNo != -1)
 				{
@@ -2216,6 +2243,13 @@ static void UIHandleMercAttack(SOLDIERTYPE* pSoldier, SOLDIERTYPE* pTargetSoldie
 		//guiPendingOverrideEvent = A_CHANGE_TO_MOVE;
 	}
 
+
+	// co-op guest: the host fires
+	if (CoopSyncGuestAttack(*pSoldier, sTargetGridNo, bTargetLevel,
+		pSoldier->bWeaponMode == WM_ATTACHED ? UNDER_GLAUNCHER : pSoldier->inv[HANDPOS].usItem))
+	{
+		return;
+	}
 
 	ItemHandleResult iHandleReturn;
 	if (pSoldier->bWeaponMode == WM_ATTACHED)
@@ -2807,6 +2841,9 @@ static BOOLEAN SoldierCanAffordNewStance(SOLDIERTYPE* pSoldier, UINT8 ubDesiredS
 
 void UIHandleSoldierStanceChange(SOLDIERTYPE* s, INT8 bNewStance)
 {
+	// co-op guest: the host changes his stance
+	if (CoopSyncGuestStance(*s, bNewStance)) return;
+
 	// Is this a valid stance for our position?
 	if (!IsValidStance(s, bNewStance))
 	{
@@ -3827,8 +3864,19 @@ static ScreenID UIHandleLCChangeToLook(UI_EVENT* pUIEvent)
 }
 
 
+static BOOLEAN MakeSoldierTurn(SOLDIERTYPE*, GridNo);
+
+BOOLEAN UIMakeSoldierTurn(SOLDIERTYPE* const s, GridNo const pos)
+{
+	return MakeSoldierTurn(s, pos);
+}
+
+
 static BOOLEAN MakeSoldierTurn(SOLDIERTYPE* const pSoldier, const GridNo pos)
 {
+	// co-op guest: the host turns him
+	if (CoopSyncGuestTurn(*pSoldier, pos)) return TRUE;
+
 	// Get direction from mouse pos
 	const INT16 sFacingDir = GetDirectionFromGridNo(pos, pSoldier);
 
@@ -3857,6 +3905,20 @@ static BOOLEAN MakeSoldierTurn(SOLDIERTYPE* const pSoldier, const GridNo pos)
 		guiOldEvent = LA_BEGINUIOURTURNLOCK;
 
 		return( TRUE );
+	}
+
+	// Looking the way he already faces raises his gun, the way shooting leaves it:
+	// he pays the ready cost now instead of on his next shot.
+	if (GCM->getItem(pSoldier->inv[HANDPOS].usItem)->getItemClass() == IC_GUN &&
+		!(gAnimControl[pSoldier->usAnimState].uiFlags & (ANIM_FIREREADY | ANIM_FIRE)) &&
+		(gAnimControl[pSoldier->usAnimState].uiFlags & ANIM_STATIONARY))
+	{
+		if (!EnoughPoints(pSoldier, GetAPsToReadyWeapon(pSoldier, pSoldier->usAnimState), 0, TRUE))
+		{
+			return( FALSE );
+		}
+		// no turn follows, so nothing would release a UI lock: don't take one
+		SoldierReadyWeapon(pSoldier, pos, FALSE);
 	}
 
 	return( FALSE );
@@ -4334,7 +4396,7 @@ static ScreenID UIHandleRubberBandOnTerrain(UI_EVENT* pUIEvent)
 	CFOR_EACH_IN_TEAM(s, OUR_TEAM)
 	{
 		// Check if this guy is OK to control....
-		if (OkControllableMerc(s) && !(s->uiStatusFlags & (SOLDIER_VEHICLE | SOLDIER_PASSENGER | SOLDIER_DRIVER)))
+		if (OkControllableMerc(s) && CoopIsLocalMerc(*s) && !(s->uiStatusFlags & (SOLDIER_VEHICLE | SOLDIER_PASSENGER | SOLDIER_DRIVER)))
 		{
 			// Get screen pos of gridno......
 			GetGridNoScreenXY(s->sGridNo, &sScreenX, &sScreenY);
@@ -4361,7 +4423,7 @@ static ScreenID UIHandleRubberBandOnTerrain(UI_EVENT* pUIEvent)
 	FOR_EACH_IN_TEAM(s, OUR_TEAM)
 	{
 		// Check if this guy is OK to control....
-		if (OkControllableMerc(s) && !(s->uiStatusFlags & (SOLDIER_VEHICLE | SOLDIER_PASSENGER | SOLDIER_DRIVER)))
+		if (OkControllableMerc(s) && CoopIsLocalMerc(*s) && !(s->uiStatusFlags & (SOLDIER_VEHICLE | SOLDIER_PASSENGER | SOLDIER_DRIVER)))
 		{
 			if ( !_KeyDown( ALT ) )
 			{

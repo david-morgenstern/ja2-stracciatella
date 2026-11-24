@@ -31,6 +31,7 @@ set(JA2_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/Funeral.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/History.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/IMPVideoObjects.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/IMP_Appearance.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/IMP_AboutUs.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/IMP_Attribute_Entrance.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/IMP_Attribute_Finish.cc

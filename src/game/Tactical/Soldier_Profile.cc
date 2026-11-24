@@ -1,3 +1,5 @@
+#include "Banter.h"
+#include "Coop.h"
 #include "ArmourModel.h"
 #include "Campaign_Types.h"
 #include "Interface_Control.h"
@@ -612,6 +614,9 @@ SOLDIERTYPE* ChangeSoldierTeam(SOLDIERTYPE* const old_s, UINT8 const team)
 	SOLDIERTYPE* const new_s = TacticalCreateSoldier(c);
 	if (!new_s) return 0;
 
+	// co-op: a recruit joins the player who talked them into it
+	CoopSetOwner(*new_s, team == OUR_TEAM ? CoopLocalPlayer() : 0);
+
 	// Copy vital stats back.
 	new_s->bLife                   = old_s->bLife;
 	new_s->bLifeMax                = old_s->bLifeMax;
@@ -711,6 +716,9 @@ BOOLEAN RecruitRPC( UINT8 ubCharNum )
 	ResetDeadSquadMemberList( pNewSoldier->bAssignment );
 
 	DirtyMercPanelInterface( pNewSoldier, DIRTYLEVEL2 );
+
+	// the team may have something to say about him joining, and he about them
+	BanterOnArrival(*pNewSoldier);
 
 	if ( pNewSoldier->inv[ HANDPOS ].usItem == NOTHING )
 	{

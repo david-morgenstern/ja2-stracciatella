@@ -1,4 +1,5 @@
 #include "Directories.h"
+#include "CoopSync.h"
 #include "GridSquare.h"
 #include "ItemModel.h"
 #include "Lighting.h"
@@ -421,6 +422,8 @@ static void CreateCorpsePalette(ROTTING_CORPSE*);
 ROTTING_CORPSE* AddRottingCorpse(ROTTING_CORPSE_DEFINITION* const pCorpseDef)
 try
 {
+	CoopSyncCorpseAdded(*pCorpseDef);
+
 	if (pCorpseDef->sGridNo == NOWHERE)   return NULL;
 	if (pCorpseDef->ubType  == NO_CORPSE) return NULL;
 

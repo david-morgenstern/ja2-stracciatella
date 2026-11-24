@@ -1,4 +1,7 @@
 #include "Handle_Items.h"
+#include "CoopNet.h"
+#include "CoopSync.h"
+#include "Coop.h"
 #include "Real_Time_Input.h"
 #include "Soldier_Find.h"
 #include "Structure.h"
@@ -1422,7 +1425,7 @@ static void HandleModNone(UINT32 const key, UIEventKind* const new_event)
 			{ // ATE: This key will select everybody in the sector
 				FOR_EACH_IN_TEAM(s, OUR_TEAM)
 				{
-					if (!OkControllableMerc(s))
+					if (!OkControllableMerc(s) || !CoopIsLocalMerc(*s))
 						continue;
 					if (s->uiStatusFlags & (SOLDIER_VEHICLE | SOLDIER_PASSENGER | SOLDIER_DRIVER))
 						continue;
@@ -1776,6 +1779,35 @@ static void HandleModCtrlShift(UINT32 const key, UIEventKind* const new_event)
 {
 	switch (key)
 	{
+		case 'p': // co-op hot seat: hand the keyboard to the next player
+			if (CoopActive())
+			{
+				CoopSwitchToPlayer((CoopLocalPlayer() + 1) % CoopPlayerCount());
+			}
+			break;
+
+		case 'u': // co-op guest: fetch the host's game again
+			CoopSyncRequestResync();
+			break;
+
+		case 'j': // co-op: show the join code again
+			ScreenMsg(FONT_MCOLOR_LTYELLOW, MSG_INTERFACE, CoopNetStatusText().empty() ? ST::string("Not in a network co-op game. Use Host Game on the main menu.") : CoopNetStatusText());
+			break;
+
+		case 'g': // co-op: give the selected merc to the next player
+			if (CoopActive())
+			{
+				SOLDIERTYPE* const sel = GetSelectedMan();
+				if (sel && sel->bTeam == OUR_TEAM)
+				{
+					CoopCycleOwner(*sel);
+					ScreenMsg(FONT_MCOLOR_LTYELLOW, MSG_INTERFACE, sel->name + " now takes orders from " + CoopPlayerName(CoopOwner(*sel)) + ".");
+					if (!CoopIsLocalMerc(*sel)) SelectNextAvailSoldier(sel);
+					fInterfacePanelDirty = DIRTYLEVEL2;
+				}
+			}
+			break;
+
 		case 'r':
 			if (gamepolicy(isHotkeyEnabled(UI_Tactical, HKMOD_CTRL_SHIFT, 'r')))
 			{
@@ -1982,6 +2014,7 @@ static void HandleModAlt(UINT32 const key, UIEventKind* const new_event)
 			CFOR_EACH_IN_TEAM(s, OUR_TEAM)
 			{
 				if (!OkControllableMerc(s))           continue;
+				if (!CoopIsLocalMerc(*s))             continue;
 				if (s->bAssignment != CurrentSquad()) continue;
 				if (!s->bStealthMode)                 continue;
 				stealth_on = false;
@@ -1991,6 +2024,7 @@ static void HandleModAlt(UINT32 const key, UIEventKind* const new_event)
 			FOR_EACH_IN_TEAM(s, OUR_TEAM)
 			{
 				if (!OkControllableMerc(s))           continue;
+				if (!CoopIsLocalMerc(*s))             continue;
 				if (s->bAssignment != CurrentSquad()) continue;
 				if (AM_A_ROBOT(s))                    continue;
 

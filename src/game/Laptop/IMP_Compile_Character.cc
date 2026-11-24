@@ -14,12 +14,10 @@
 #include "Animation_Data.h"
 #include "Random.h"
 #include "LaptopSave.h"
+#include "IMP_Appearance.h"
 
 
 #define ATTITUDE_LIST_SIZE 20
-
-// the strength a burly portrait has to be carried by to become a burly body
-#define IMP_BIG_BODY_MIN_STRENGTH 75
 
 
 static INT32 AttitudeList[ATTITUDE_LIST_SIZE];
@@ -175,14 +173,18 @@ IMPPortrait const& GetCurrentIMPPortrait(void)
 
 bool IMPCharacterHasBigBody(MERCPROFILESTRUCT const& p)
 {
-	if (p.bSex != MALE) return false;
+	// the build is picked on the appearance page and kept in the body type
+	return p.bSex == MALE && p.ubBodyType == BIGMALE;
+}
 
-	INT32 const iPortrait = FindIMPPortraitByFace(p.ubFaceIndex);
-	if (iPortrait < 0 || !GetIMPPortraits()[iPortrait].bigBody) return false;
 
-	// the strength the character was made with, which is what the build was
-	// decided on: training up afterwards does not change anyone's shape
-	return p.bStrength - p.bStrengthDelta >= IMP_BIG_BODY_MIN_STRENGTH;
+/* Whether the character in progress gets the big build: the player asked for
+ * it on the appearance page, and the strength the character was made with can
+ * carry it. Training up afterwards does not change anyone's shape. */
+static bool IMPCharacterWantsBigBody(MERCPROFILESTRUCT const& p)
+{
+	return p.bSex == MALE && gIMPAppearance.bigBuild &&
+		p.bStrength - p.bStrengthDelta >= IMP_BIG_BODY_MIN_STRENGTH;
 }
 
 
@@ -545,10 +547,12 @@ static void SelectMercFace(void)
 
 static void SetMercSkinAndHairColors(void)
 {
-	IMPPortrait const& portrait = GetCurrentIMPPortrait();
 	MERCPROFILESTRUCT& p = GetProfile(GetIMPSlotInProgress());
-	p.HAIR = portrait.hair;
-	p.SKIN = portrait.skin;
+	if (gIMPAppearance.vest.empty()) ResetIMPAppearanceForPortrait(GetCurrentIMPPortrait());
+	p.HAIR  = gIMPAppearance.hair;
+	p.SKIN  = gIMPAppearance.skin;
+	p.VEST  = gIMPAppearance.vest;
+	p.PANTS = gIMPAppearance.pants;
 }
 
 
@@ -565,7 +569,7 @@ void HandleMercStatsForChangesInFace(void)
 	// body type
 	if (fCharacterIsMale)
 	{
-		if (IMPCharacterHasBigBody(p))
+		if (IMPCharacterWantsBigBody(p))
 		{
 			p.ubBodyType = BIGMALE;
 			if (iSkillA == MARTIALARTS) iSkillA = HANDTOHAND;

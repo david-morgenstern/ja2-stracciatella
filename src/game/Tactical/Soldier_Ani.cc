@@ -1,4 +1,5 @@
 
+#include "Banter.h"
 #include "Font_Control.h"
 #include "Handle_Items.h"
 #include "MapScreen.h"
@@ -2843,6 +2844,9 @@ void HandleKilledQuote(SOLDIERTYPE* pKilledSoldier, SOLDIERTYPE* pKillerSoldier,
 
 					// Buddy witnessed?
 					SayBuddyWitnessedQuoteFromKill( pKillerSoldier, sGridNo, bLevel );
+
+					// a teammate may have something to say about the killer
+					BanterOnKill(*pKillerSoldier);
 
 				}
 			}

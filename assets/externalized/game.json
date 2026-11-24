@@ -276,5 +276,22 @@
   //  Threshold (numerator) above which a suppressed soldier drops to a lower stance.
   //  Set to 0 to make soldiers always react (1.13 behaviour); raise it to make them even more resistant (it's not the same as suppression tolerance).
   //  vanilla setting: 130
-  "suppression_fire_reaction_threshold": 130
+  "suppression_fire_reaction_threshold": 130,
+
+  //  A merc raises his gun by looking (L / look cursor) in the direction he already faces,
+  //  or by shooting. While it is raised he sees this many tiles further straight ahead...
+  //  vanilla setting: 0
+  "raised_weapon_sight_bonus": 2,
+
+  //  ...and gets this many extra interrupt points against someone in front of him.
+  //  vanilla setting: 0
+  "raised_weapon_interrupt_bonus": 1,
+
+  //  With a sniper scope on the raised gun he sees this many tiles further on top...
+  //  vanilla setting: 0
+  "raised_weapon_scope_sight_bonus": 8,
+
+  //  ...and gets this many more interrupt points on top.
+  //  vanilla setting: 0
+  "raised_weapon_scope_interrupt_bonus": 2
 }

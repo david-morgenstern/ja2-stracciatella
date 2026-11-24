@@ -1,4 +1,5 @@
 #include "Font.h"
+#include "CoopSync.h"
 #include "Game_Clock.h"
 #include "Font_Control.h"
 #include "Render_Dirty.h"
@@ -598,6 +599,9 @@ void UpdateClock()
 #endif
 	// check game state for pause screen masks
 	CreateDestroyScreenMaskForPauseGame( );
+
+	// co-op guest: the host's clock is sent along with the soldiers
+	if (CoopSyncGuestFrozen()) return;
 
 	if( guiCurrentScreen != GAME_SCREEN && guiCurrentScreen != MAP_SCREEN && guiCurrentScreen != GAME_SCREEN )
 	{

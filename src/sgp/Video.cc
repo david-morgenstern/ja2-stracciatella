@@ -19,6 +19,7 @@
 #include <SDL3/SDL_surface.h>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <stdexcept>
 
 #define MAX_CURSOR_WIDTH  64
@@ -62,18 +63,93 @@ static std::chrono::steady_clock::duration TimeBetweenRefreshScreens;
 
 static void DeletePrimaryVideoSurfaces(void);
 
+// the desktop size of a display in real pixels, which on a high DPI display
+// is its logical size times the pixel density
+static bool DisplayPixelSize(SDL_DisplayID const display, int& w, int& h)
+{
+	const SDL_DisplayMode* dm = SDL_GetDesktopDisplayMode(display);
+	if (!dm) return false;
+	float const density = dm->pixel_density > 0 ? dm->pixel_density : 1.0f;
+	w = static_cast<int>(std::lround(dm->w * density));
+	h = static_cast<int>(std::lround(dm->h * density));
+	return true;
+}
+
+
 // returns if desktop resolution larger game resolution
 BOOLEAN IsDesktopLargeEnough()
 {
-	const SDL_DisplayMode* dm = SDL_GetDesktopDisplayMode(0);
-	if (dm)
+	SDL_DisplayID const display = g_game_window ? SDL_GetDisplayForWindow(g_game_window) : SDL_GetPrimaryDisplay();
+	int w, h;
+	if (DisplayPixelSize(display, w, h))
 	{
-		if (dm->w < SCREEN_WIDTH || dm->h < SCREEN_HEIGHT)
+		if (w < SCREEN_WIDTH || h < SCREEN_HEIGHT)
 		{
 			return false;
 		}
 	}
 	return true;
+}
+
+
+void VideoPickAutoResolution(UINT16& width, UINT16& height, bool const fullscreen)
+{
+	SDL_DisplayID const display = SDL_GetPrimaryDisplay();
+	int w, h;
+	bool ok = DisplayPixelSize(display, w, h);
+	if (ok && !fullscreen)
+	{
+		// a window has to fit beside the taskbar and under its own title bar
+		SDL_Rect usable;
+		const SDL_DisplayMode* dm = SDL_GetDesktopDisplayMode(display);
+		if (dm && SDL_GetDisplayUsableBounds(display, &usable))
+		{
+			float const density = dm->pixel_density > 0 ? dm->pixel_density : 1.0f;
+			int const title_bar = 40;
+			int const side_borders = 16;
+			w = static_cast<int>((usable.w - side_borders) * density);
+			h = static_cast<int>((usable.h - title_bar) * density);
+		}
+	}
+	if (!ok || w < 640 || h < 480)
+	{
+		width  = 640;
+		height = 480;
+		return;
+	}
+	int scale = std::max(1, static_cast<int>(std::lround(h / 720.0)));
+	while (scale > 1 && (w / scale < 640 || h / scale < 480)) --scale;
+	width  = static_cast<UINT16>(w / scale);
+	height = static_cast<UINT16>(h / scale);
+	SLOGI("Auto resolution: {}x{} at {}x for a {}x{} pixel display", width, height, scale, w, h);
+}
+
+
+void VideoSetWindowScale(int scale)
+{
+	if (!g_game_window) return;
+	if (SDL_GetWindowFlags(g_game_window) & SDL_WINDOW_FULLSCREEN) return;
+
+	float density = SDL_GetWindowPixelDensity(g_game_window);
+	if (density <= 0) density = 1.0f;
+
+	SDL_DisplayID const display = SDL_GetDisplayForWindow(g_game_window);
+	SDL_Rect usable{ 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+	SDL_GetDisplayUsableBounds(display, &usable);
+	int top = 0, left = 0, bottom = 0, right = 0;
+	SDL_GetWindowBordersSize(g_game_window, &top, &left, &bottom, &right);
+	if (top == 0) top = 40; // borders are not known before the window is shown
+
+	int const avail_w = static_cast<int>((usable.w - left - right) * density);
+	int const avail_h = static_cast<int>((usable.h - top - bottom) * density);
+	int const max_scale = std::max(1, std::min(avail_w / SCREEN_WIDTH, avail_h / SCREEN_HEIGHT));
+	if (scale <= 0 || scale > max_scale) scale = max_scale;
+
+	int const w = static_cast<int>(std::ceil(SCREEN_WIDTH  * scale / density));
+	int const h = static_cast<int>(std::ceil(SCREEN_HEIGHT * scale / density));
+	SDL_SetWindowSize(g_game_window, w, h);
+	SDL_SetWindowPosition(g_game_window, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+	SLOGI("Window scaled to {}x ({}x{} pixels, density {})", scale, SCREEN_WIDTH * scale, SCREEN_HEIGHT * scale, density);
 }
 
 void VideoSetFullScreen(const BOOLEAN enable)
@@ -102,7 +178,7 @@ static void GetRGBDistribution();
 void InitializeVideoManager(const VideoScaleQuality quality, const int32_t targetFPS)
 {
 	ScaleQuality = quality;
-	g_window_flags |= SDL_WINDOW_RESIZABLE;
+	g_window_flags |= SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 
 	g_game_window = SDL_CreateWindow(APPLICATION_NAME,
 					SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -119,6 +195,9 @@ void InitializeVideoManager(const VideoScaleQuality quality, const int32_t targe
 			gWindowIconData.bytes_per_pixel*gWindowIconData.width
 	));
 	SDL_SetWindowIcon(g_game_window, windowIcon.get());
+
+	// open at the largest whole-number scale the display has room for
+	VideoSetWindowScale(0);
 
 
 	ClippingRect.set(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);

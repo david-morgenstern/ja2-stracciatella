@@ -406,8 +406,21 @@ static void KeyChange(SDL_KeyboardEvent const* const event, bool const pressed)
 }
 
 
+// Ctrl+Alt+1..4 sizes the window to that many times the game resolution,
+// Ctrl+Alt+0 to the largest that fits
+static bool HandleWindowScaleKey(const SDL_KeyboardEvent* event, bool const down)
+{
+	if (event->key < SDLK_0 || event->key > SDLK_4) return false;
+	if (!_KeyDown(CTRL) || !_KeyDown(ALT)) return false;
+	if (down) VideoSetWindowScale(static_cast<int>(event->key - SDLK_0));
+	return true;
+}
+
+
 void KeyDown(const SDL_KeyboardEvent* event)
 {
+	if (HandleWindowScaleKey(event, true)) return;
+
 	switch (event->key)
 	{
 		case SDLK_LSHIFT:
@@ -439,6 +452,8 @@ void KeyDown(const SDL_KeyboardEvent* event)
 
 void KeyUp(const SDL_KeyboardEvent* event)
 {
+	if (HandleWindowScaleKey(event, false)) return;
+
 	switch (event->key)
 	{
 		case SDLK_LSHIFT:

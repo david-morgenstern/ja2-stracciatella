@@ -97,6 +97,13 @@ struct GAME_OPTIONS
 	UINT8		ubDifficultyLevel;
 	BOOLEAN	fTurnTimeLimit;
 	UINT8		ubGameSaveMode;
+
+	// House rules, picked on the new game screen. They live in bytes the save
+	// format kept spare, so saves without them load with all of them off.
+	BOOLEAN fInfiniteMines;   // no mine ever runs dry
+	BOOLEAN fMoreMilitia;     // a sector holds 32 militia instead of 20
+	BOOLEAN fWisdomLearning;  // wisdom counts double and for every stat
+	UINT8   ubCoopPlayers;    // co-op campaign with this many players; 1 is a normal game
 };
 
 //This structure will contain general Ja2 settings  NOT individual game settings.

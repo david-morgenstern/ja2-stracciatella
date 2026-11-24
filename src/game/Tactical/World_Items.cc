@@ -1,4 +1,5 @@
 #include "Items.h"
+#include "CoopSync.h"
 #include "Handle_Items.h"
 #include "Overhead.h"
 #include "Structure.h"
@@ -119,9 +120,26 @@ void FindPanicBombsAndTriggers(void)
 }
 
 
+static INT32 g_next_world_item_index = -1;
+
+void SetNextWorldItemIndex(INT32 const index)
+{
+	g_next_world_item_index = index;
+}
+
+
 static INT32 GetFreeWorldItemIndex(void)
 {
 	INT32 iItemIndex;
+
+	// co-op: a guest puts the host's items into the host's slots
+	if (g_next_world_item_index >= 0)
+	{
+		INT32 const wanted = g_next_world_item_index;
+		g_next_world_item_index = -1;
+		if (static_cast<size_t>(wanted) >= gWorldItems.size()) gWorldItems.resize(wanted + 1);
+		if (!gWorldItems[wanted].fExists) return wanted;
+	}
 
 	Assert(gWorldItems.size() <= INT32_MAX);
 	for (iItemIndex = 0; iItemIndex < static_cast<INT32>(gWorldItems.size()); iItemIndex++)
@@ -170,12 +188,15 @@ INT32 AddItemToWorld(INT16 sGridNo, const OBJECTTYPE* const pObject, const UINT8
 		AddBombToWorld(iItemIndex);
 	}
 
+	CoopSyncWorldItemChanged(iItemIndex);
 	return iItemIndex;
 }
 
 
 void RemoveItemFromWorld(const INT32 iItemIndex)
 {
+	CoopSyncWorldItemChanged(iItemIndex);
+
 	WORLDITEM& wi = GetWorldItem(iItemIndex);
 	if (!wi.fExists) return;
 

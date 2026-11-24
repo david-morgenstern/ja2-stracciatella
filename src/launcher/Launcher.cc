@@ -281,6 +281,8 @@ void Launcher::populateChoices() {
 		RustPointer<char> resourceVersionString(VanillaVersion_toString(version));
 		gameVersionInput->add(resourceVersionString.get());
 	}
+	// 0x0 lets the game fill the display at a whole-number scale
+	predefinedResolutionMenuButton->insert(-1, "Auto (fit display)", 0, setPredefinedResolution, this, 0);
 	for (std::pair<int,int> res : predefinedResolutions) {
 		ST::string resolutionString = ST::format("{d}x{d}", res.first, res.second);
 		predefinedResolutionMenuButton->insert(-1, resolutionString.c_str(), 0, setPredefinedResolution, this, 0);
@@ -492,7 +494,8 @@ void Launcher::maintainSubProcessState(void* userdata) {
 }
 
 bool Launcher::resolutionIsInvalid() {
-	return resolutionXInput->value() < 640 || resolutionYInput->value() < 480;
+	bool const isAuto = resolutionXInput->value() == 0 && resolutionYInput->value() == 0;
+	return !isAuto && (resolutionXInput->value() < 640 || resolutionYInput->value() < 480);
 }
 
 bool Launcher::gameIsRunning() {

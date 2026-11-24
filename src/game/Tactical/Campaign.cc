@@ -37,6 +37,8 @@
 #include "GameInstance.h"
 #include "policy/GamePolicy.h"
 
+#include <algorithm>
+
 // Convert hired mercs' stats subpoint changes into actual point changes where warranted
 static void ProcessUpdateStats(MERCPROFILESTRUCT&, SOLDIERTYPE*);
 
@@ -192,11 +194,13 @@ static void ProcessStatChange(MERCPROFILESTRUCT& p, StatKind const ubStat, UINT1
 	}
 
 
-	if (ubReason == FROM_TRAINING)
+	if (ubReason == FROM_TRAINING || gGameOptions.fWisdomLearning)
 	{
-		// training always affected by wisdom
+		// training always affected by wisdom, and with the house rule everything is
 		fAffectedByWisdom = TRUE;
 	}
+	// how strongly wisdom above or below 50 speeds up or slows down learning
+	INT32 const wisdom_weight = gGameOptions.fWisdomLearning ? 2 : 1;
 
 
 	// stats/skills of 0 can NEVER be improved!
@@ -242,7 +246,9 @@ static void ProcessStatChange(MERCPROFILESTRUCT& p, StatKind const ubStat, UINT1
 			// if there IS a usChance, adjust it for high or low wisdom (50 is avg)
 			if (usChance > 0 && fAffectedByWisdom)
 			{
-				usChance += (usChance * (p.bWisdom + (p.sWisdomGain / SubpointsPerPoint(WISDOMAMT, p.bExpLevel)) - 50)) / 100;
+				INT32 const wisdom = p.bWisdom + (p.sWisdomGain / SubpointsPerPoint(WISDOMAMT, p.bExpLevel));
+				INT32 const adjusted = usChance + (usChance * wisdom_weight * (wisdom - 50)) / 100;
+				usChance = static_cast<UINT16>(std::max<INT32>(1, adjusted));
 			}
 
 			/*

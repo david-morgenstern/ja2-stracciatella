@@ -1,4 +1,8 @@
 #include "Directories.h"
+#include "Logger.h"
+#include "DirFs.h"
+#include "CoopNet.h"
+#include "CoopSync.h"
 #include "Font.h"
 #include "GameLoop.h"
 #include "HImage.h"
@@ -165,6 +169,12 @@ BOOLEAN		gfCameDirectlyFromGame = FALSE;
 BOOLEAN		gfLoadedGame = FALSE;	//Used to know when a game has been loaded, the flag in gtacticalstatus might have been reset already
 
 BOOLEAN		gfLoadGameUponEntry = FALSE;
+// with gfLoadGameUponEntry: load this save instead of the last one saved
+ST::string	gzLoadGameUponEntryName;
+// the save being loaded by name; the list is sorted by time and can change under an index
+static ST::string gzLoadingByName;
+// co-op: open the loaded game for others to join
+bool		gfCoopHostAfterLoad = false;
 
 static BOOLEAN gfHadToMakeBasementLevels = FALSE;
 
@@ -379,7 +389,21 @@ static void EnterSaveLoadScreen()
 	{
 		// Make sure the save is valid
 		INT8 const last_slot = gGameSettings.bLastSavedGameSlot;
-		if (last_slot != -1 && gSavedGamesList.begin() + last_slot < gSavedGamesList.end())
+		if (!gzLoadGameUponEntryName.empty())
+		{
+			if (GCM->saveGameFiles()->exists(GetSaveGamePath(gzLoadGameUponEntryName)))
+			{
+				gzLoadingByName = gzLoadGameUponEntryName;
+				StartFadeOutForSaveLoadScreen();
+			}
+			else
+			{
+				SLOGE("Cannot load {}: no such save", gzLoadGameUponEntryName);
+				gfLoadGameUponEntry = FALSE;
+			}
+			gzLoadGameUponEntryName.clear();
+		}
+		else if (last_slot != -1 && gSavedGamesList.begin() + last_slot < gSavedGamesList.end())
 		{
 			gbSelectedSaveLocation = last_slot;
 			StartFadeOutForSaveLoadScreen();
@@ -482,6 +506,8 @@ static void EnterSaveLoadScreen()
 static void ExitSaveLoadScreen(void)
 {
 	gfLoadGameUponEntry = FALSE;
+	gzLoadGameUponEntryName.clear();
+	gfCoopHostAfterLoad = false; // left without loading, or it is used up
 
 	if( !gfSaveLoadScreenButtonsCreated )
 		return;
@@ -1180,12 +1206,28 @@ static void DoneFadeOutForSaveLoadScreen(void)
 
 	try
 	{
-		auto& saveName = (*(gSavedGamesList.begin() + gbSelectedSaveLocation)).name();
+		ST::string const saveName = !gzLoadingByName.empty() ? gzLoadingByName :
+			(gSavedGamesList.begin() + gbSelectedSaveLocation)->name();
+		gzLoadingByName.clear();
 		LoadSavedGame(saveName);
+
+		// co-op: the game a host sent is only a vehicle; it has no place in the list
+		if (saveName == CoopNetReceivedSaveName())
+		{
+			GCM->saveGameFiles()->deleteFile(GetSaveGamePath(saveName));
+		}
+
+		if (gfCoopHostAfterLoad)
+		{
+			gfCoopHostAfterLoad = false;
+			CoopNetHost();
+		}
 
 		gFadeInDoneCallback = DoneFadeInForSaveLoadScreen;
 
+		if (saveName == CoopNetReceivedSaveName()) CoopSyncAfterSnapshotLoaded();
 		ScreenID const screen = guiScreenToGotoAfterLoadingSavedGame;
+		SLOGI("loaded {}, going to screen {}", saveName, static_cast<int>(screen));
 		SetSaveLoadExitScreen(screen);
 		if (screen == MAP_SCREEN)
 		{ // We are to go to map screen after loading the game
@@ -1402,6 +1444,16 @@ void DoDeadIsDeadSave()
 			DoMessageBox(MSG_BOX_BASIC_STYLE, zSaveLoadText[SLG_SAVE_GAME_ERROR], GAME_SCREEN, MSG_BOX_FLAG_OK, NULL, NULL);
 		}
 	}
+}
+
+
+void LoadSaveInPlace(ST::string const& name)
+{
+	// like a quick load, from wherever the player is, but of the named save
+	if (!GCM->saveGameFiles()->exists(GetSaveGamePath(name))) return;
+	gzLoadingByName = name;
+	StartFadeOutForSaveLoadScreen();
+	gfDoingQuickLoad = TRUE;
 }
 
 

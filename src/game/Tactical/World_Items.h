@@ -53,6 +53,8 @@ static inline WORLDITEM& GetWorldItem(size_t const idx)
 
 INT32 AddItemToWorld(INT16 sGridNo, const OBJECTTYPE* pObject, UINT8 ubLevel, UINT16 usFlags, INT8 bRenderZHeightAboveLevel, INT8 bVisible);
 void RemoveItemFromWorld( INT32 iItemIndex );
+// Co-op: the next item added to the world goes into this slot (the host's).
+void SetNextWorldItemIndex(INT32 index);
 INT32 FindWorldItem( UINT16 usItem );
 
 void LoadWorldItemsFromMap(HWFILE);

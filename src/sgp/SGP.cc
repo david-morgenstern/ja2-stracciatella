@@ -351,7 +351,9 @@ int main(int argc, char* argv[])
 
 		uint16_t width = EngineOptions_getResolutionX(params.get());
 		uint16_t height = EngineOptions_getResolutionY(params.get());
-		g_ui.setScreenSize(width, height);
+		// "auto" comes as 0x0 and is settled once SDL can see the display
+		bool const autoResolution = width == 0 && height == 0;
+		g_ui.setScreenSize(autoResolution ? 640 : width, autoResolution ? 480 : height);
 
 		if (EngineOptions_shouldRunUnittests(params.get())) {
 	#ifdef WITH_UNITTESTS
@@ -373,6 +375,12 @@ int main(int argc, char* argv[])
 		////////////////////////////////////////////////////////////
 
 		SDL_Init(SDL_INIT_VIDEO);
+
+		if (autoResolution)
+		{
+			VideoPickAutoResolution(width, height, shouldStartInFullScreen);
+			g_ui.setScreenSize(width, height);
+		}
 
 		// restore output to the console (on windows when built with MINGW)
 	#ifdef __MINGW32__

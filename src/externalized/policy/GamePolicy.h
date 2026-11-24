@@ -128,6 +128,11 @@ public:
 	uint8_t suppression_fire_modifier; // Scales AP loss from suppression (numerator of the AP-loss formula); vanilla 6, 0 disables AP loss
 	uint16_t suppression_fire_reaction_threshold; // Numerator of the stance-reaction threshold; vanilla 130, 0 = always react (1.13 behaviour), higher = more resistant
 
+	uint8_t raised_weapon_sight_bonus;     // Extra tiles of sight straight ahead while a gun is raised; vanilla 0
+	uint8_t raised_weapon_interrupt_bonus; // Extra interrupt points against someone in front while a gun is raised; vanilla 0
+	uint8_t raised_weapon_scope_sight_bonus;     // ...plus this many tiles with a sniper scope on the gun; vanilla 0
+	uint8_t raised_weapon_scope_interrupt_bonus; // ...plus this many interrupt points with a sniper scope on the gun; vanilla 0
+
 	////////////////////////////////////////////////////////////
 	//
 	////////////////////////////////////////////////////////////

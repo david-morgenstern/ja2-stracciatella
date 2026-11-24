@@ -1,4 +1,5 @@
 #include "Directories.h"
+#include "CoopSync.h"
 #include "GameSettings.h"
 #include "ItemModel.h"
 #include "LoadSaveSmokeEffect.h"
@@ -238,11 +239,15 @@ void AddSmokeEffectToTile(SMOKEEFFECT const* const smoke, const SmokeEffectModel
 
 	gpWorldLevelData[sGridNo].ubExtFlags[bLevel] |= FromSmokeTypeToWorldFlags(smokeEffect->getID());
 	SetRenderFlags(RENDER_FLAG_FULL);
+
+	// co-op: the guests see the cloud too
+	CoopSyncSmokeTile(sGridNo, bLevel, static_cast<UINT8>(smokeEffect->getID()), smoke->ubDuration, smoke->bAge, true);
 }
 
 
 void RemoveSmokeEffectFromTile( INT16 sGridNo, INT8 bLevel )
 {
+	CoopSyncSmokeTile(sGridNo, bLevel, 0, 0, 0, false);
 	ANITILE *pAniTile;
 	UINT8		ubLevelID;
 

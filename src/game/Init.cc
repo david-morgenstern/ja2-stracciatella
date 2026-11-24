@@ -1,3 +1,4 @@
+#include "Banter.h"
 #include "HImage.h"
 #include "Init.h"
 #include "Screens.h"
@@ -59,6 +60,8 @@ try
 
 	// Init tactical engine
 	InitTacticalEngine();
+
+	LoadBanter();
 
 	// Init timer system
 	//Moved to the splash screen code.

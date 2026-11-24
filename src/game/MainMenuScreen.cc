@@ -29,8 +29,13 @@
 #include "Video.h"
 #include "WordWrap.h"
 #include "UILayout.h"
+#include "CoopNet.h"
+#include "HImage.h"
+#include "Text_Input.h"
 
 #include <string_theory/format>
+
+#include <cstdlib>
 
 
 
@@ -67,6 +72,30 @@ static ScreenID guiMainMenuExitScreen = MAINMENU_SCREEN;
 
 
 extern BOOLEAN gfLoadGameUponEntry;
+extern ST::string gzLoadGameUponEntryName;
+extern bool gfCoopHostAfterLoad;
+
+
+// Co-op: Host Game and Join Game, beside the regular menu
+#define COOP_BTN_X  (STD_SCREEN_X + 25) // ends left of "Continue Saved Game"
+#define COOP_BTN_Y  (STD_SCREEN_Y + MAINMENU_Y)
+#define COOP_BTN_W  130
+#define COOP_BTN_H  26
+#define JOIN_BOX_X  (STD_SCREEN_X + 170)
+#define JOIN_BOX_Y  (STD_SCREEN_Y + 285)
+#define JOIN_BOX_W  300
+#define JOIN_BOX_H  120
+
+static GUIButtonRef gCoopHostButton;
+static GUIButtonRef gCoopJoinButton;
+static GUIButtonRef gJoinOkButton;
+static GUIButtonRef gJoinCancelButton;
+static bool         gfJoinBox = false;
+static ST::string   gzJoinBoxStatus;
+
+static void ShowJoinBox(bool show);
+static void HandleJoinBox();
+static void RenderJoinBox();
 
 
 static void ExitMainMenu(void);
@@ -153,6 +182,26 @@ ScreenID MainMenuScreenHandle(void)
 		SetMusicMode(MUSIC_MAIN_MENU);
 	}
 
+	// Testing aid: JA2_COOP_AUTOHOST=<save name> loads that save and hosts it,
+	// JA2_COOP_AUTOJOIN=<code> joins, without clicking through the menu.
+	static bool coop_auto_done = false;
+	if (!coop_auto_done)
+	{
+		coop_auto_done = true;
+		if (char const* const host = getenv("JA2_COOP_AUTOHOST"))
+		{
+			gzLoadGameUponEntryName = host;
+			gfLoadGameUponEntry     = TRUE;
+			gfCoopHostAfterLoad     = true;
+			gbHandledMainMenu       = LOAD_GAME;
+		}
+		else if (char const* const code = getenv("JA2_COOP_AUTOJOIN"))
+		{
+			ShowJoinBox(true);
+			CoopNetJoin(code);
+		}
+	}
+
 
 	if (fInitialRender)
 	{
@@ -167,7 +216,10 @@ ScreenID MainMenuScreenHandle(void)
 
 	RedrawActiveButtonBackgrounds();
 
+	if (gfJoinBox) HandleJoinBox();
+
 	RenderButtons();
+	if (gfJoinBox) RenderAllTextFields();
 
 	HandleMainMenuInput();
 	HandleMainMenuScreen();
@@ -230,7 +282,11 @@ void InitMainMenu(void)
 	CreateDestroyMainMenuButtons(TRUE);
 
 	// If there are no saved games, disable the button
-	if (!AreThereAnySavedGameFiles()) DisableButton(iMenuButtons[LOAD_GAME]);
+	if (!AreThereAnySavedGameFiles())
+	{
+		DisableButton(iMenuButtons[LOAD_GAME]);
+		DisableButton(gCoopHostButton);
+	}
 
 	gbHandledMainMenu = 0;
 	fInitialRender    = TRUE;
@@ -246,6 +302,7 @@ void InitMainMenu(void)
 
 static void ExitMainMenu(void)
 {
+	if (gfJoinBox) ShowJoinBox(false);
 	CreateDestroyMainMenuButtons(FALSE);
 	RemoveVObject(guiMainMenuBackGroundImage);
 	RemoveVObject(guiJa2LogoImage);
@@ -276,6 +333,16 @@ static void HandleMainMenuInput(void)
 	InputAtom InputEvent;
 	while (DequeueSpecificEvent(&InputEvent, KEYBOARD_EVENTS))
 	{
+		if (gfJoinBox)
+		{
+			if (HandleTextInput(&InputEvent)) continue;
+			if (InputEvent.usEvent == KEY_UP)
+			{
+				if (InputEvent.usParam == SDLK_RETURN) CoopNetJoin(GetStringFromField(0));
+				if (InputEvent.usParam == SDLK_ESCAPE) ShowJoinBox(false);
+			}
+			continue;
+		}
 		if (InputEvent.usEvent == KEY_UP)
 		{
 			switch (InputEvent.usParam)
@@ -315,6 +382,9 @@ static void SetMainMenuExitScreen(ScreenID const uiNewScreen)
 }
 
 
+static void CoopHostCallback(GUI_BUTTON*, UINT32 reason);
+static void CoopJoinCallback(GUI_BUTTON*, UINT32 reason);
+
 static void CreateDestroyMainMenuButtons(BOOLEAN fCreate)
 {
 	static BOOLEAN fButtonsCreated = FALSE;
@@ -348,6 +418,11 @@ static void CreateDestroyMainMenuButtons(BOOLEAN fCreate)
 			b->SetUserData(cnt);
 		}
 
+		gCoopHostButton = CreateTextButton("Host Game", FONT14ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, COOP_BTN_X, COOP_BTN_Y, COOP_BTN_W, COOP_BTN_H, MSYS_PRIORITY_HIGHEST, CoopHostCallback);
+		gCoopHostButton->SetFastHelpText("Load one of your games and let friends join it over the internet.");
+		gCoopJoinButton = CreateTextButton("Join Game", FONT14ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, COOP_BTN_X, COOP_BTN_Y + MAINMENU_Y_SPACE, COOP_BTN_W, COOP_BTN_H, MSYS_PRIORITY_HIGHEST, CoopJoinCallback);
+		gCoopJoinButton->SetFastHelpText("Join a friend's game with the code their game shows.");
+
 		fButtonsCreated = TRUE;
 	}
 	else
@@ -360,6 +435,8 @@ static void CreateDestroyMainMenuButtons(BOOLEAN fCreate)
 			RemoveButton(iMenuButtons[cnt]);
 			UnloadButtonImage(iMenuImages[cnt]);
 		}
+		RemoveButton(gCoopHostButton);
+		RemoveButton(gCoopJoinButton);
 		fButtonsCreated = FALSE;
 	}
 }
@@ -378,4 +455,134 @@ void RenderGameVersion() {
 
 void RenderCopyright() {
 	DrawTextToScreen(gzCopyrightText, 0, SCREEN_HEIGHT - 15, SCREEN_WIDTH, FONT10ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, CENTER_JUSTIFIED);
+}
+
+
+static bool CheckRelaySetUp()
+{
+	if (!CoopNetRelayAddress().empty()) return true;
+	DoMessageBox(MSG_BOX_BASIC_STYLE,
+		"Co-op needs a relay. Put its address in coop.json in the game's home folder, next to ja2.json, like this: { \"relay\": \"example.org:27960\", \"name\": \"Your name\" }",
+		MAINMENU_SCREEN, MSG_BOX_FLAG_OK, nullptr, nullptr);
+	return false;
+}
+
+
+static void CoopHostCallback(GUI_BUTTON*, UINT32 const reason)
+{
+	if (!(reason & MSYS_CALLBACK_REASON_POINTER_UP)) return;
+	if (!CheckRelaySetUp()) return;
+
+	// pick the game on the load screen; it opens for others once loaded
+	gfCoopHostAfterLoad = true;
+	gbHandledMainMenu   = LOAD_GAME;
+}
+
+
+static void CoopJoinCallback(GUI_BUTTON*, UINT32 const reason)
+{
+	if (!(reason & MSYS_CALLBACK_REASON_POINTER_UP)) return;
+	if (!CheckRelaySetUp()) return;
+	ShowJoinBox(true);
+}
+
+
+static void JoinOkCallback(GUI_BUTTON*, UINT32 const reason)
+{
+	if (reason & MSYS_CALLBACK_REASON_POINTER_UP) CoopNetJoin(GetStringFromField(0));
+}
+
+
+static void JoinCancelCallback(GUI_BUTTON*, UINT32 const reason)
+{
+	if (reason & MSYS_CALLBACK_REASON_POINTER_UP) ShowJoinBox(false);
+}
+
+
+static void ShowMenuButtons(bool const show)
+{
+	for (GUIButtonRef const& b : iMenuButtons) { if (show) b->Show(); else b->Hide(); }
+	if (show) { gCoopHostButton->Show(); gCoopJoinButton->Show(); }
+	else      { gCoopHostButton->Hide(); gCoopJoinButton->Hide(); }
+}
+
+
+static void CloseJoinBoxWidgets()
+{
+	KillTextInputMode();
+	RemoveButton(gJoinOkButton);
+	RemoveButton(gJoinCancelButton);
+	ShowMenuButtons(true);
+	gfJoinBox = false;
+	gzJoinBoxStatus.clear();
+}
+
+
+static void ShowJoinBox(bool const show)
+{
+	if (show == gfJoinBox) return;
+
+	if (show)
+	{
+		gfJoinBox = true;
+		ShowMenuButtons(false);
+
+		InitTextInputMode();
+		SetTextInputFont(FONT14ARIAL);
+		Set16BPPTextFieldColor(Get16BPPColor(FROMRGB(0, 0, 0)));
+		SetTextInputRegularColors(FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK);
+		SetTextInputHilitedColors(FONT_MCOLOR_BLACK, FONT_MCOLOR_WHITE, FONT_MCOLOR_WHITE);
+		SetCursorColor(Get16BPPColor(FROMRGB(255, 255, 255)));
+		AddTextInputField(JOIN_BOX_X + 100, JOIN_BOX_Y + 40, 100, 20, MSYS_PRIORITY_HIGHEST, {}, 6, INPUTTYPE_FULL_TEXT);
+
+		gJoinOkButton     = CreateTextButton("Join",   FONT14ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, JOIN_BOX_X + 40,  JOIN_BOX_Y + 85, 100, 24, MSYS_PRIORITY_HIGHEST, JoinOkCallback);
+		gJoinCancelButton = CreateTextButton("Cancel", FONT14ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, JOIN_BOX_X + 160, JOIN_BOX_Y + 85, 100, 24, MSYS_PRIORITY_HIGHEST, JoinCancelCallback);
+		gzJoinBoxStatus = "Type the code the host's game shows.";
+		RenderJoinBox();
+	}
+	else
+	{
+		CloseJoinBoxWidgets();
+		// a join under way is called off with the box
+		if (CoopNetIsClient()) CoopNetDisconnect();
+		fInitialRender = TRUE; // redraw the menu without the box
+	}
+}
+
+
+static void HandleJoinBox()
+{
+	// the host's game has arrived: load it through the load screen
+	ST::string const save = CoopNetTakeReceivedSave();
+	if (!save.empty())
+	{
+		CloseJoinBoxWidgets(); // the connection stays: we are in the game now
+		gzLoadGameUponEntryName = save;
+		gfLoadGameUponEntry     = TRUE;
+		gbHandledMainMenu       = LOAD_GAME;
+		return;
+	}
+
+	ST::string status = CoopNetStatusText();
+	if (status.empty()) status = "Type the code the host's game shows.";
+	if (status != gzJoinBoxStatus)
+	{
+		gzJoinBoxStatus = status;
+		RenderJoinBox();
+	}
+}
+
+
+static void RenderJoinBox()
+{
+	RenderMainMenu();
+	RenderGameVersion();
+	RenderCopyright();
+	FRAME_BUFFER->ShadowRect(JOIN_BOX_X, JOIN_BOX_Y, JOIN_BOX_X + JOIN_BOX_W, JOIN_BOX_Y + JOIN_BOX_H);
+	FRAME_BUFFER->ShadowRect(JOIN_BOX_X, JOIN_BOX_Y, JOIN_BOX_X + JOIN_BOX_W, JOIN_BOX_Y + JOIN_BOX_H);
+	DrawTextToScreen("Join a co-op game", JOIN_BOX_X, JOIN_BOX_Y + 10, JOIN_BOX_W, FONT14ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, CENTER_JUSTIFIED);
+	DrawTextToScreen("Code:", JOIN_BOX_X + 40, JOIN_BOX_Y + 43, 55, FONT12ARIAL, FONT_MCOLOR_WHITE, FONT_MCOLOR_BLACK, LEFT_JUSTIFIED);
+	DrawTextToScreen(gzJoinBoxStatus, JOIN_BOX_X + 5, JOIN_BOX_Y + 66, JOIN_BOX_W - 10, FONT10ARIAL, FONT_MCOLOR_LTYELLOW, FONT_MCOLOR_BLACK, CENTER_JUSTIFIED);
+	MarkButtonsDirty();
+	InvalidateScreen();
 }

@@ -107,6 +107,11 @@ DefaultGamePolicy::DefaultGamePolicy(const JsonValue& json)
 
 	suppression_fire_modifier = gp.getOptionalUInt("suppression_fire_modifier", 6);
 	suppression_fire_reaction_threshold = gp.getOptionalUInt("suppression_fire_reaction_threshold", 130);
+
+	raised_weapon_sight_bonus = gp.getOptionalUInt("raised_weapon_sight_bonus", 0);
+	raised_weapon_interrupt_bonus = gp.getOptionalUInt("raised_weapon_interrupt_bonus", 0);
+	raised_weapon_scope_sight_bonus = gp.getOptionalUInt("raised_weapon_scope_sight_bonus", 0);
+	raised_weapon_scope_interrupt_bonus = gp.getOptionalUInt("raised_weapon_scope_interrupt_bonus", 0);
 }
 
 /** Check if a hotkey is enabled. */

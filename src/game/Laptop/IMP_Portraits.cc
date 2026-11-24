@@ -13,6 +13,7 @@
 #include "Button_System.h"
 #include "VSurface.h"
 #include "Font_Control.h"
+#include "IMP_Appearance.h"
 
 #include <string_theory/string>
 
@@ -197,16 +198,18 @@ static void BtnIMPPortraitDoneCallback(GUI_BUTTON *btn, UINT32 reason)
 {
 	if (reason & MSYS_CALLBACK_REASON_POINTER_UP)
 	{
-		iCurrentImpPage = IMP_MAIN_PAGE;
+		// grab picture number; a different face brings its own hair, skin and build
+		INT32 const picked = GetIMPPortraitIndex(fCharacterIsMale, iCurrentPortrait);
+		static INT32 last_picked = -1;
+		if (picked != last_picked)
+		{
+			ResetIMPAppearanceForPortrait(GetIMPPortraits()[picked]);
+			last_picked = picked;
+		}
+		iPortraitNumber = picked;
 
-		// current mode now is voice
-		if (iCurrentProfileMode < 4) iCurrentProfileMode = 4;
-
-		// if we are already done, leave
-		if (iCurrentProfileMode == 5) iCurrentImpPage = IMP_FINISH;
-
-		// grab picture number
-		iPortraitNumber = GetIMPPortraitIndex(fCharacterIsMale, iCurrentPortrait);
+		// the appearance page comes next and takes the character back to the main page
+		iCurrentImpPage = IMP_APPEARANCE;
 
 		fButtonPendingFlag = TRUE;
 	}

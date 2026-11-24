@@ -28,6 +28,17 @@ void VideoSetBrightness(float brightness);
  * manager */
 void VideoToggleFullScreen(void);
 
+/* The resolution "auto" picks: the display's real pixels (in a window: the
+ * part left by the taskbar and title bar) divided by the whole
+ * number that gives a logical height closest to 720 (1280x720 on 2560x1440 and
+ * 3840x2160, 960x540 on 1920x1080), never below 640x480. */
+void VideoPickAutoResolution(UINT16& width, UINT16& height, bool fullscreen);
+
+/* Size the window to scale x the game resolution in real pixels, or the
+ * largest scale that fits the display when scale is 0 or does not fit.
+ * Does nothing in fullscreen. */
+void VideoSetWindowScale(int scale);
+
 void SetMouseCursorProperties(INT16 sOffsetX, INT16 sOffsetY, UINT16 usCursorHeight, UINT16 usCursorWidth);
 
 void InvalidateRegionEx(INT32 iLeft, INT32 iTop, INT32 iRight, INT32 iBottom);

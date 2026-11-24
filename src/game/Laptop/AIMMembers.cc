@@ -1,3 +1,4 @@
+#include "Banter.h"
 #include "AIMListingModel.h"
 #include "Cursors.h"
 #include "Directories.h"
@@ -1885,7 +1886,11 @@ static BOOLEAN DisplaySnowBackground(void)
 		ubCount = 0;
 
 		if( gubVideoConferencingMode == AIM_VIDEO_FIRST_CONTACT_MERC_MODE && gfAimMemberCanMercSayOpeningQuote )
+		{
 			InitVideoFaceTalking(gbCurrentSoldier, QUOTE_GREETING);
+			// he may have heard who else is working for you
+			BanterOnAimCall(gbCurrentSoldier, giMercFaceIndex);
+		}
 
 		return(TRUE);
 	}

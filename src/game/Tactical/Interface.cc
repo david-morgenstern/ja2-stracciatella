@@ -1,4 +1,5 @@
 #include "Animation_Control.h"
+#include "Coop.h"
 #include "Animation_Data.h"
 #include "Button_System.h"
 #include "ContentManager.h"
@@ -1908,6 +1909,7 @@ void HandleTopMessages(void)
 					{
 						// ATE: increase this so that we don't go into here again...
 						++ts->usTactialTurnLimitCounter;
+						CoopEveryoneEndsTurn(); // time is up for every player
 						UIHandleEndTurn(NULL);
 					}
 				}

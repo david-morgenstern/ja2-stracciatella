@@ -1,4 +1,5 @@
 #include "MapScreen.h"
+#include "GameSettings.h"
 #include "MessageBoxScreen.h"
 #include "SAM_Sites.h"
 #include "Town_Militia.h"
@@ -637,6 +638,12 @@ bool CanNearbyMilitiaScoutThisSector(const SGPSector& sMap)
 		}
 	}
 	return false;
+}
+
+
+UINT8 MaxMilitiaPerSector()
+{
+	return gGameOptions.fMoreMilitia ? MAX_MILITIA_SLOTS_PER_SECTOR : 20;
 }
 
 

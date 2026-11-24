@@ -1,3 +1,4 @@
+#include "Banter.h"
 #include "Strategic.h"
 #include "MapScreen.h"
 #include "Types.h"
@@ -45,6 +46,9 @@ void HandleStrategicDeath(SOLDIERTYPE& s)
 
 static void HandleSoldierDeadComments(SOLDIERTYPE const* const dead)
 {
+	// friendships the buddy slots cannot hold
+	BanterOnDeath(*dead);
+
 	FOR_EACH_IN_TEAM(s, dead->bTeam)
 	{
 		if (s->bLife < OKLIFE) continue;

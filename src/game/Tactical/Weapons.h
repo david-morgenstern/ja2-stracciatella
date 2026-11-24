@@ -179,4 +179,17 @@ UINT16 GunRange(OBJECTTYPE const&);
 extern BOOLEAN gfNextFireJam;
 extern BOOLEAN gfNextShotKills;
 
+/* A raised gun (after shooting, or after looking the way he already faces)
+ * lets a soldier see further straight ahead and react quicker to someone in
+ * front of him; a sniper scope on it adds more. Both are 0 unless game.json
+ * turns them on, and 0 while the gun is not raised. */
+INT32 RaisedWeaponSightBonus(SOLDIERTYPE const&);
+INT32 RaisedWeaponInterruptBonus(SOLDIERTYPE const&);
+
+// The sound of this soldier's burst with the gun he attacks with.
+ST::string GetBurstSoundName(SOLDIERTYPE const& soldier);
+
+// Co-op guest: a bullet's miss as it looks and sounds.
+void ShowBulletMissOnly(INT16 sGridNo, INT16 sXPos, INT16 sYPos, INT16 sZPos);
+
 #endif

@@ -1,3 +1,5 @@
+#include "Banter.h"
+#include "Coop.h"
 #include "Font_Control.h"
 #include "math.h"
 #include "MapScreen.h"
@@ -97,6 +99,9 @@ INT8 HireMerc(MERC_HIRE_STRUCT& h)
 		SLOGW("TacticalCreateSoldier in HireMerc():  Failed to Add Merc");
 		return MERC_HIRE_FAILED;
 	}
+
+	// co-op: the merc takes orders from the player who hired them
+	CoopSetOwner(*s, CoopLocalPlayer());
 
 	if (DidGameJustStart())
 	{
@@ -247,6 +252,9 @@ void MercArrivesCallback(SOLDIERTYPE& s)
 
 	// add the guy to a squad
 	AddCharacterToAnySquad(&s);
+
+	// whoever is already there may have something to say about him, and he about them
+	BanterOnArrival(s);
 
 	// ATE: Make sure we use global.....
 	if (s.fUseLandingZoneForArrival)

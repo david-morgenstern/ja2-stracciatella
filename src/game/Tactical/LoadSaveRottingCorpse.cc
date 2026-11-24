@@ -7,9 +7,14 @@
 
 void ExtractRottingCorpseFromFile(HWFILE const file, ROTTING_CORPSE_DEFINITION* const c)
 {
-	BYTE data[160];
+	BYTE data[ROTTING_CORPSE_RECORD_SIZE];
 	file->read(data, sizeof(data));
+	ExtractRottingCorpse(data, c);
+}
 
+
+void ExtractRottingCorpse(BYTE const* const data, ROTTING_CORPSE_DEFINITION* const c)
+{
 	DataReader d{data};
 	EXTR_U8(d, c->ubType)
 	EXTR_U8(d, c->ubBodyType)
@@ -31,14 +36,20 @@ void ExtractRottingCorpseFromFile(HWFILE const file, ROTTING_CORPSE_DEFINITION* 
 	EXTR_BOOL(d, c->fHeadTaken)
 	EXTR_U8(d, c->ubAIWarningValue)
 	EXTR_SKIP(d, 12)
-	Assert(d.getConsumed() == lengthof(data));
+	Assert(d.getConsumed() == ROTTING_CORPSE_RECORD_SIZE);
 }
 
 
 void InjectRottingCorpseIntoFile(HWFILE const file, ROTTING_CORPSE_DEFINITION const* const c)
 {
-	BYTE data[160];
+	BYTE data[ROTTING_CORPSE_RECORD_SIZE];
+	InjectRottingCorpse(data, c);
+	file->write(data, sizeof(data));
+}
 
+
+void InjectRottingCorpse(BYTE* const data, ROTTING_CORPSE_DEFINITION const* const c)
+{
 	DataWriter d{data};
 	INJ_U8(d, c->ubType)
 	INJ_U8(d, c->ubBodyType)
@@ -60,7 +71,5 @@ void InjectRottingCorpseIntoFile(HWFILE const file, ROTTING_CORPSE_DEFINITION co
 	INJ_BOOL(d, c->fHeadTaken)
 	INJ_U8(d, c->ubAIWarningValue)
 	INJ_SKIP(d, 12)
-	Assert(d.getConsumed() == lengthof(data));
-
-	file->write(data, sizeof(data));
+	Assert(d.getConsumed() == ROTTING_CORPSE_RECORD_SIZE);
 }

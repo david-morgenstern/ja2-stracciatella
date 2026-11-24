@@ -9,8 +9,13 @@
 #include <optional>
 
 
-// how many militia of all ranks can be in any one sector at once
-#define MAX_ALLOWABLE_MILITIA_PER_SECTOR 20
+// the most militia a sector can ever hold: the size of the tactical militia team
+#define MAX_MILITIA_SLOTS_PER_SECTOR 32
+
+// how many militia of all ranks can be in any one sector at once: 20, or all
+// the slots with the "more militia" house rule
+UINT8 MaxMilitiaPerSector();
+#define MAX_ALLOWABLE_MILITIA_PER_SECTOR (MaxMilitiaPerSector())
 
 // how many new green militia civilians are trained at a time
 #define MILITIA_TRAINING_SQUAD_SIZE		10		// was 6

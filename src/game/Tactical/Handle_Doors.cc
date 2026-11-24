@@ -1,4 +1,5 @@
 #include "Handle_Doors.h"
+#include "CoopSync.h"
 
 #include "AI.h"
 #include "Animation_Control.h"
@@ -56,6 +57,7 @@ void HandleDoorChangeFromGridNo(SOLDIERTYPE* const s, INT16 const grid_no, BOOLE
 		RecompileLocalMovementCosts(grid_no);
 		UpdateLightCoverageOnStructureChange(grid_no);
 	}
+	CoopSyncDoorChanged(grid_no);
 
 	// set door busy
 	DOOR_STATUS* const door_status = GetDoorStatus(grid_no);

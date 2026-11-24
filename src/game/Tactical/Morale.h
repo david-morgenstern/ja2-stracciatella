@@ -58,7 +58,11 @@ struct MoraleEvent
 	INT8  bChange;
 };
 
-extern void HandleMoraleEvent(SOLDIERTYPE* pSoldier, INT8 bMoraleEvent, const SGPSector& sMap);
+extern // The morale blow of losing a close friend, for friendships the buddy slots
+// cannot hold (they only take profiles below 128).
+void HandleBuddyDiedMorale(SOLDIERTYPE&);
+
+void HandleMoraleEvent(SOLDIERTYPE* pSoldier, INT8 bMoraleEvent, const SGPSector& sMap);
 extern void RefreshSoldierMorale( SOLDIERTYPE * pSoldier );
 extern INT8 GetMoraleModifier( const SOLDIERTYPE * pSoldier );
 

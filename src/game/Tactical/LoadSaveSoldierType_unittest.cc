@@ -42,6 +42,7 @@ protected:
 		// Core stats
 		testSoldier.bLife = 85;
 		testSoldier.bLifeMax = 85;
+		testSoldier.ubCoopOwner = 1;
 		testSoldier.bAgility = 75;
 		testSoldier.bAgilityDamage = 5;
 		testSoldier.bDexterity = 80;
@@ -193,6 +194,7 @@ TEST_F(LoadSaveSoldierTypeTestImpl, RoundTripSerialization)
 	// Verify core stats
 	EXPECT_EQ(extractedSoldier.bLife, testSoldier.bLife);
 	EXPECT_EQ(extractedSoldier.bLifeMax, testSoldier.bLifeMax);
+	EXPECT_EQ(extractedSoldier.ubCoopOwner, testSoldier.ubCoopOwner);
 	EXPECT_EQ(extractedSoldier.bAgility, testSoldier.bAgility);
 	EXPECT_EQ(extractedSoldier.bAgilityDamage, testSoldier.bAgilityDamage);
 	EXPECT_EQ(extractedSoldier.bDexterity, testSoldier.bDexterity);

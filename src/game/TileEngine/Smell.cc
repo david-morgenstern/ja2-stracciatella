@@ -1,4 +1,5 @@
 #include "TileDef.h"
+#include "CoopSync.h"
 #include "WorldDef.h"
 #include "Random.h"
 #include "Smell.h"
@@ -338,6 +339,8 @@ void DropSmell(SOLDIERTYPE& s)
 
 void InternalDropBlood(GridNo const gridno, INT8 const level, BloodKind const blood_kind, UINT8 strength, INT8 const visible)
 {
+	// co-op: the guests see it too
+	CoopSyncBlood(gridno, level, static_cast<UINT8>(blood_kind), strength, visible);
 	/* Dropping some blood;
 	 * We can check the type of blood by consulting the type in the smell byte */
 

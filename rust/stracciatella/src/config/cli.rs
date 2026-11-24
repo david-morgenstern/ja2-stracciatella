@@ -79,7 +79,7 @@ impl Cli {
         opts.optopt(
             "",
             "res",
-            "Screen resolution, e.g. 800x600. Default value is 640x480",
+            "Screen resolution, e.g. 800x600, or auto to fill the display at a whole-number scale. Default value is 640x480",
             "WIDTHxHEIGHT",
         );
         opts.optopt(

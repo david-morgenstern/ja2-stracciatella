@@ -2858,7 +2858,8 @@ static void RenderIconsPerSectorForSelectedTown(void)
 			MPrint(sSectorMilitiaMapSector != iCounter ? sX : sX - 15, sY + MILITIA_BOX_BOX_HEIGHT - 5, sString);
 		}
 
-		// now display
+		// now display; more than 30 (the "more militia" house rule) take wider rows
+		INT32 const per_row = n_total > 30 ? 7 : POPUP_MILITIA_ICONS_PER_ROW;
 		for (INT32 i = 0; i < n_total; ++i)
 		{
 			// get screen x and y coords
@@ -2867,14 +2868,14 @@ static void RenderIconsPerSectorForSelectedTown(void)
 			UINT16 icon_base;
 			if (sSectorMilitiaMapSector == iCounter)
 			{
-				x         += i % POPUP_MILITIA_ICONS_PER_ROW * MEDIUM_MILITIA_ICON_SPACING       + 2;
-				y         += i / POPUP_MILITIA_ICONS_PER_ROW * (MEDIUM_MILITIA_ICON_SPACING - 1) + 3;
+				x         += i % per_row * MEDIUM_MILITIA_ICON_SPACING       + 2;
+				y         += i / per_row * (MEDIUM_MILITIA_ICON_SPACING - 1) + 3;
 				icon_base  = 5;
 			}
 			else
 			{
-				x         += i % POPUP_MILITIA_ICONS_PER_ROW * MEDIUM_MILITIA_ICON_SPACING + 3;
-				y         += i / POPUP_MILITIA_ICONS_PER_ROW * MEDIUM_MILITIA_ICON_SPACING + 3;
+				x         += i % per_row * MEDIUM_MILITIA_ICON_SPACING + 3;
+				y         += i / per_row * MEDIUM_MILITIA_ICON_SPACING + 3;
 				icon_base  = 8;
 			}
 

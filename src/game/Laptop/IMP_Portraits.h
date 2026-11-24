@@ -9,6 +9,7 @@ void ExitIMPPortraits( void );
 void HandleIMPPortraits( void );
 
 extern INT32 iPortraitNumber;
+extern INT32 iCurrentPortrait;
 
 
 #endif

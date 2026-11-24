@@ -268,6 +268,11 @@ BOOLEAN HandleCheckForExitArrowsInput( BOOLEAN fAdjustForConfirm );
 void SetUIBusy(const SOLDIERTYPE* s);
 void UnSetUIBusy(const SOLDIERTYPE* s);
 
+// End the player turn now (co-op: once every player is done with it).
+void FinishPlayerTurn();
+// Turn the merc to face that spot, as a look-cursor click does.
+BOOLEAN UIMakeSoldierTurn(SOLDIERTYPE*, GridNo);
+
 ScreenID UIHandleLUIEndLock(UI_EVENT*);
 
 void BeginDisplayTimedCursor(UICursorID, UINT32 uiDelay);

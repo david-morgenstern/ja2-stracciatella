@@ -1,4 +1,5 @@
 #include "GameLoop.h"
+#include "Coop.h"
 #include "Interface_Panels.h"
 #include "VSurface.h"
 #include "Overhead.h"
@@ -128,7 +129,7 @@ void EnterTacticalScreen(void)
 	const SOLDIERTYPE* sel = GetSelectedMan();
 	if (sel != NULL)
 	{
-		if (!OK_CONTROLLABLE_MERC(sel))
+		if (!OK_CONTROLLABLE_MERC(sel) || !CoopIsLocalMerc(*sel))
 		{
 			SelectNextAvailSoldier(sel);
 			sel = GetSelectedMan();
@@ -580,7 +581,7 @@ static void TacticalScreenLocateToSoldier(void)
 	if (prefer != NULL)
 	{
 		gPreferredInitialSelectedGuy = NULL;
-		if (OK_CONTROLLABLE_MERC(prefer) && OK_INTERRUPT_MERC(prefer))
+		if (OK_CONTROLLABLE_MERC(prefer) && OK_INTERRUPT_MERC(prefer) && CoopIsLocalMerc(*prefer))
 		{
 			LocateSoldier(prefer, 10);
 			SelectSoldier(prefer, SELSOLDIER_FORCE_RESELECT);
@@ -591,7 +592,7 @@ static void TacticalScreenLocateToSoldier(void)
 	// Set locator to first merc
 	FOR_EACH_IN_TEAM(s, OUR_TEAM)
 	{
-		if (OkControllableMerc(s) && OK_INTERRUPT_MERC(s))
+		if (OkControllableMerc(s) && OK_INTERRUPT_MERC(s) && CoopIsLocalMerc(*s))
 		{
 			LocateSoldier(s, 10);
 			SelectSoldier(s, SELSOLDIER_FORCE_RESELECT);

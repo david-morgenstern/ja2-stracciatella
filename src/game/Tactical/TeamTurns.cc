@@ -1,3 +1,5 @@
+#include "Weapons.h"
+#include "Coop.h"
 #include "LoadSaveData.h"
 #include "Timer_Control.h"
 #include "Types.h"
@@ -130,6 +132,9 @@ void StartPlayerTeamTurn( BOOLEAN fDoBattleSnd, BOOLEAN fEnteringCombatMode )
 			}
 		}
 	}
+
+	// co-op: nobody is done yet; the first player who can act gets the keyboard
+	CoopStartPlayerTurn();
 
 	// Dirty panel interface!
 	fInterfacePanelDirty = DIRTYLEVEL2;
@@ -592,6 +597,11 @@ static void StartInterrupt(void)
 		}
 
 		SLOGD("INTERRUPT: starting interrupt for {}", first_interrupter->ubID);
+
+		// co-op: everyone with an interrupter acts again before it ends, and the
+		// owner of the first interrupter gets the keyboard
+		CoopResetTurnReady();
+		if (!CoopIsLocalMerc(*first_interrupter)) CoopSwitchToPlayer(CoopOwner(*first_interrupter));
 
 		// Select guy....
 		SelectSoldier(first_interrupter, SELSOLDIER_ACKNOWLEDGE | SELSOLDIER_FORCE_RESELECT);
@@ -1222,6 +1232,12 @@ INT8 CalcInterruptDuelPts(const SOLDIERTYPE* const pSoldier, const SOLDIERTYPE* 
 				bPoints += ubDistance / STRAIGHT;
 			}
 		}
+	}
+
+	// a raised gun already pointing at him makes for a quicker reaction
+	if (GetDirectionToGridNoFromGridNo(pSoldier->sGridNo, opponent->sGridNo) == pSoldier->bDirection)
+	{
+		bPoints += RaisedWeaponInterruptBonus(*pSoldier);
 	}
 
 	// whether active or not, penalize people who are running

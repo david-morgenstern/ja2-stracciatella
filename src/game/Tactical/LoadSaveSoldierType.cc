@@ -2,6 +2,7 @@
 #include "LoadSaveData.h"
 #include "LoadSaveObjectType.h"
 #include "LoadSaveSoldierType.h"
+#include "Coop.h"
 #include "Overhead.h"
 #include "Types.h"
 
@@ -202,7 +203,13 @@ void ExtractSoldierType(const BYTE* const data, SOLDIERTYPE* const s, bool strac
 	s->PantsPal = d.readUTF8(PaletteRepID_LENGTH, ST::substitute_invalid);
 	s->VestPal = d.readUTF8(PaletteRepID_LENGTH, ST::substitute_invalid);
 	s->SkinPal = d.readUTF8(PaletteRepID_LENGTH, ST::substitute_invalid);
-	EXTR_SKIP(d, 328)
+	{ // co-op owner, in two bytes of a long spare block
+		UINT8 owner[2];
+		EXTR_U8(d, owner[0])
+		EXTR_U8(d, owner[1])
+		s->ubCoopOwner = CoopUnpackOwner(owner);
+	}
+	EXTR_SKIP(d, 326)
 	EXTR_I8(d, s->bMedical)
 	EXTR_BOOL(d, s->fBeginFade)
 	EXTR_U8(d, s->ubFadeLevel)
@@ -715,7 +722,13 @@ void InjectSoldierType(BYTE* const data, const SOLDIERTYPE* const s)
 	d.writeUTF8(s->PantsPal, PaletteRepID_LENGTH);
 	d.writeUTF8(s->VestPal, PaletteRepID_LENGTH);
 	d.writeUTF8(s->SkinPal, PaletteRepID_LENGTH);
-	INJ_SKIP(d, 328)
+	{
+		UINT8 owner[2];
+		CoopPackOwner(s->ubCoopOwner, owner);
+		INJ_U8(d, owner[0])
+		INJ_U8(d, owner[1])
+	}
+	INJ_SKIP(d, 326)
 	INJ_I8(d, s->bMedical)
 	INJ_BOOL(d, s->fBeginFade)
 	INJ_U8(d, s->ubFadeLevel)

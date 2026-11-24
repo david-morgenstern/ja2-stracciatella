@@ -83,6 +83,9 @@ void AddObjectToMapTempFile( UINT32 uiMapIndex, UINT16 usIndex );
 
 void LoadAllMapChangesFromMapTempFileAndApplyThem(void);
 
+// Co-op guest: make a change the host made to the loaded map.
+void ApplyMapChangeLive(MODIFY_MAP const&);
+
 
 void RemoveStructFromMapTempFile( UINT32 uiMapIndex, UINT16 usIndex );
 

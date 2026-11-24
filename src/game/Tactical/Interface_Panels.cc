@@ -1,4 +1,5 @@
 #include "Interface_Panels.h"
+#include "Coop.h"
 #include "Animation_Control.h"
 #include "Assignments.h"
 #include "Boxing.h"
@@ -2462,7 +2463,10 @@ void RenderTEAMPanel(DirtyLevel const dirty_level)
 				// Restore AP/LIFE POSIITONS
 
 				// Render name!
-				UINT8 const foreground = s->bStealthMode ? FONT_MCOLOR_LTYELLOW : FONT_MCOLOR_LTGRAY;
+				// co-op: another player's merc gets a blue name
+				UINT8 const foreground =
+					!CoopIsLocalMerc(*s) ? FONT_MCOLOR_LTBLUE :
+					s->bStealthMode      ? FONT_MCOLOR_LTYELLOW : FONT_MCOLOR_LTGRAY;
 				SetFontAttributes(BLOCKFONT2, foreground);
 
 				// RENDER ON SAVE BUFFER!
@@ -3279,6 +3283,7 @@ SOLDIERTYPE* FindNextMercInTeamPanel(SOLDIERTYPE* const prev)
 		}
 
 		if (!OK_CONTROLLABLE_MERC(s))            continue;
+		if (!CoopIsLocalMerc(*s))                continue;
 		if (!OK_INTERRUPT_MERC(s))               continue;
 		if (s->bAssignment != prev->bAssignment) continue;
 		if (seen_prev) return s;

@@ -213,6 +213,9 @@ target_link_libraries(${JA2_BINARY} PRIVATE
 if (MINGW)
     target_link_libraries(${JA2_BINARY} PRIVATE ntdll)
 endif()
+if (WIN32)
+    target_link_libraries(${JA2_BINARY} PRIVATE ws2_32) # co-op sockets
+endif()
 if (ANDROID)
     target_link_libraries(${JA2_BINARY} PRIVATE android log)
 endif()

@@ -174,6 +174,19 @@ enum
 	THROW_TARGET_MERC_CATCH,
 };
 
+/* The sound a merc makes when the player clicks him. A repeat click on the one
+ * already selected says something again, StarCraft style, and enough quick
+ * clicks in a row make him annoyed; that is only for voices that come with
+ * "pissed" lines, the others stay quiet on a repeat click as they always did. */
+void DoMercSelectSound(SOLDIERTYPE& s, bool already_selected);
+
+/* A voice can say a dialogue line as a plain sound instead, with no text box:
+ * BATTLESNDS/<voice>_q<quote>.wav, with takes _2 to _9 picked at random. Used
+ * for lines nobody wrote subtitles for, like StarCraft unit responses. */
+bool HasMercQuoteSound(SOLDIERTYPE const&, UINT16 quote);
+// Queue it like any other line, so it doesn't talk over someone else.
+void MakeCharacterDialogueEventDoQuoteSound(SOLDIERTYPE&, UINT16 quote);
+
 // An enumeration for playing battle sounds
 enum BattleSound : INT8
 {
@@ -194,6 +207,7 @@ enum BattleSound : INT8
 	BATTLE_SOUND_LOWMORALE_ATTN1,
 	BATTLE_SOUND_LOCKED,
 	BATTLE_SOUND_ENEMY,
+	BATTLE_SOUND_PISSED, // only voices that ship <voice>_pissed.wav have it
 	NUM_MERC_BATTLE_SOUNDS
 };
 
@@ -470,6 +484,7 @@ struct SOLDIERTYPE
 	BOOLEAN fFlashPortrait;
 	INT8 bMechanical;
 	INT8 bLifeMax; // maximum life for this merc
+	UINT8 ubCoopOwner; // co-op: the player who controls this merc (see Coop.h)
 
 	FACETYPE* face;
 

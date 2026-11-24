@@ -114,7 +114,9 @@ void InitializeMines( void )
 
 
 	// choose which mine will run out of production.  This will never be the Alma mine or an empty mine (San Mona)...
-	do
+	// With the infinite mines house rule none does: the index points past the end.
+	if (gGameOptions.fInfiniteMines) ubDepletedMineIndex = UINT8_MAX;
+	else do
 	{
 		ubDepletedMineIndex = ( UINT8 ) Random(minesData.size());
 		// Try next one if this mine can't run out for quest-related reasons (see Ian)

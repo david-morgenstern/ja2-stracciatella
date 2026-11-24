@@ -1,4 +1,5 @@
 #include <cmath>
+#include "CoopSync.h"
 
 #include "Font_Control.h"
 #include "Handle_Items.h"
@@ -3195,6 +3196,9 @@ static INT8 FireBullet(BULLET* pBullet, BOOLEAN fFake)
 
 INT8 FireBulletGivenTarget(SOLDIERTYPE* const pFirer, const FLOAT dEndX, const FLOAT dEndY, const FLOAT dEndZ, const UINT16 usHandItem, INT16 sHitBy, const BOOLEAN fBuckshot, const BOOLEAN fFake)
 {
+	// co-op: guests see and hear the shot too
+	if (!fFake) CoopSyncShotFired(*pFirer, dEndX, dEndY, dEndZ, usHandItem, sHitBy, fBuckshot);
+
 	// fFake indicates that we should set things up for a call to ChanceToGetThrough
 	FLOAT dStartZ;
 
@@ -3961,6 +3965,15 @@ void MoveBullet(BULLET* const pBullet)
 			}
 			else
 			{
+				// co-op guest: this bullet is only for show (the host's game decides
+				// what it hits), so it ends at the first thing in its way
+				if (CoopSyncGuestFrozen() &&
+					pBullet->iCurrTileX + pBullet->iCurrTileY * WORLD_COLS != pBullet->pFirer->sGridNo)
+				{
+					RemoveBullet(pBullet);
+					return;
+				}
+
 				// there are structures in this tile
 				iCurrCubesAboveLevelZ = CONVERT_HEIGHTUNITS_TO_INDEX( iCurrAboveLevelZ );
 				// figure out the LOS cube level of the current point
